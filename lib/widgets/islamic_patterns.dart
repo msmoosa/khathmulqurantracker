@@ -102,7 +102,7 @@ class IslamicHeader extends StatelessWidget {
                   child: Text(
                     '\u0628\u0650\u0633\u0645\u0650 \u0627\u0644\u0644\u0647\u0650 \u0627\u0644\u0631\u0651\u064E\u062D\u0645\u0670\u0646\u0650 \u0627\u0644\u0631\u0651\u064E\u062D\u064A\u0645\u0650',
                     style: TextStyle(
-                      fontSize: 18,
+                      fontSize: 20,
                       color: AppColors.goldLight.withAlpha(200),
                       fontWeight: FontWeight.w400,
                     ),
@@ -112,7 +112,7 @@ class IslamicHeader extends StatelessWidget {
                 Text(
                   title,
                   style: const TextStyle(
-                    fontSize: 26,
+                    fontSize: 28,
                     fontWeight: FontWeight.w700,
                     color: Colors.white,
                     letterSpacing: 0.3,
@@ -123,7 +123,7 @@ class IslamicHeader extends StatelessWidget {
                   Text(
                     subtitle!,
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 15,
                       color: Colors.white.withAlpha(180),
                     ),
                   ),

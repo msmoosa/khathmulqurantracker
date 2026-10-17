@@ -17,7 +17,7 @@ class TrackerScreen extends StatefulWidget {
 }
 
 class _TrackerScreenState extends State<TrackerScreen> {
-  static const _itemExtent = 44.0;
+  static const _itemExtent = 52.0;
 
   late int _surah;
   late int _verse;
@@ -130,7 +130,7 @@ class _TrackerScreenState extends State<TrackerScreen> {
                   child: Text(
                     'Surah',
                     textAlign: TextAlign.center,
-                    style: theme.textTheme.labelLarge?.copyWith(
+                    style: theme.textTheme.titleMedium?.copyWith(
                       color: theme.colorScheme.primary,
                       fontWeight: FontWeight.w600,
                       letterSpacing: 0.5,
@@ -142,7 +142,7 @@ class _TrackerScreenState extends State<TrackerScreen> {
                   child: Text(
                     'Verse',
                     textAlign: TextAlign.center,
-                    style: theme.textTheme.labelLarge?.copyWith(
+                    style: theme.textTheme.titleMedium?.copyWith(
                       color: theme.colorScheme.primary,
                       fontWeight: FontWeight.w600,
                       letterSpacing: 0.5,
@@ -172,8 +172,9 @@ class _TrackerScreenState extends State<TrackerScreen> {
                         itemBuilder: (context, i) => Center(
                           child: Text(
                             '${surahs[i].number}. ${surahs[i].name}',
-                            style: theme.textTheme.titleMedium?.copyWith(
+                            style: theme.textTheme.titleLarge?.copyWith(
                               fontWeight: FontWeight.w500,
+                              fontSize: 19,
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -197,8 +198,9 @@ class _TrackerScreenState extends State<TrackerScreen> {
                         itemBuilder: (context, i) => Center(
                           child: Text(
                             '${i + 1}',
-                            style: theme.textTheme.titleMedium?.copyWith(
+                            style: theme.textTheme.titleLarge?.copyWith(
                               fontWeight: FontWeight.w500,
+                              fontSize: 19,
                             ),
                           ),
                         ),
@@ -279,7 +281,7 @@ class _ProgressIndicator extends StatelessWidget {
               child: Text(
                 '$surahName \u00b7 Verse $verse of $verseCount',
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: 15,
                   color: Colors.white.withAlpha(200),
                 ),
                 overflow: TextOverflow.ellipsis,
@@ -296,7 +298,7 @@ class _ProgressIndicator extends StatelessWidget {
               child: Text(
                 '${(progress * 100).toStringAsFixed(1)}%',
                 style: const TextStyle(
-                  fontSize: 13,
+                  fontSize: 15,
                   fontWeight: FontWeight.w700,
                   color: AppColors.goldLight,
                 ),
