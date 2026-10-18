@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
@@ -311,7 +313,7 @@ class _TrackerScreenState extends State<TrackerScreen> {
   }
 }
 
-class _VerseButton extends StatelessWidget {
+class _VerseButton extends StatefulWidget {
   const _VerseButton({
     required this.icon,
     required this.onPressed,
@@ -323,21 +325,52 @@ class _VerseButton extends StatelessWidget {
   final ThemeData theme;
 
   @override
+  State<_VerseButton> createState() => _VerseButtonState();
+}
+
+class _VerseButtonState extends State<_VerseButton> {
+  Timer? _timer;
+  static const _initialDelay = Duration(milliseconds: 400);
+  static const _repeatInterval = Duration(milliseconds: 60);
+
+  void _startRepeating() {
+    widget.onPressed?.call();
+    _timer = Timer(_initialDelay, () {
+      _timer = Timer.periodic(_repeatInterval, (_) {
+        widget.onPressed?.call();
+      });
+    });
+  }
+
+  void _stopRepeating() {
+    _timer?.cancel();
+    _timer = null;
+  }
+
+  @override
+  void dispose() {
+    _stopRepeating();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 44,
-      height: 44,
-      child: IconButton.filled(
-        onPressed: onPressed,
-        icon: Icon(icon, size: 22),
-        style: IconButton.styleFrom(
-          backgroundColor: theme.colorScheme.primary.withAlpha(20),
-          foregroundColor: theme.colorScheme.primary,
-          disabledBackgroundColor: theme.colorScheme.outlineVariant.withAlpha(
-            40,
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+    return GestureDetector(
+      onLongPressStart: widget.onPressed != null ? (_) => _startRepeating() : null,
+      onLongPressEnd: widget.onPressed != null ? (_) => _stopRepeating() : null,
+      child: SizedBox(
+        width: 44,
+        height: 44,
+        child: IconButton.filled(
+          onPressed: widget.onPressed,
+          icon: Icon(widget.icon, size: 22),
+          style: IconButton.styleFrom(
+            backgroundColor: widget.theme.colorScheme.primary.withAlpha(20),
+            foregroundColor: widget.theme.colorScheme.primary,
+            disabledBackgroundColor: widget.theme.colorScheme.outlineVariant.withAlpha(40),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         ),
       ),
