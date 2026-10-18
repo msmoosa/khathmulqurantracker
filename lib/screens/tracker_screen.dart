@@ -17,12 +17,14 @@ class TrackerScreen extends StatefulWidget {
 }
 
 class _TrackerScreenState extends State<TrackerScreen> {
-  static const _itemExtent = 52.0;
+  static const _itemExtent = 64.0;
 
   late int _surah;
   late int _verse;
   late final FixedExtentScrollController _surahCtrl;
   late final FixedExtentScrollController _verseCtrl;
+  late final TextEditingController _verseTextCtrl;
+  final _verseFocus = FocusNode();
 
   @override
   void initState() {
@@ -32,6 +34,7 @@ class _TrackerScreenState extends State<TrackerScreen> {
     _verse = last?.verse ?? 1;
     _surahCtrl = FixedExtentScrollController(initialItem: _surah - 1);
     _verseCtrl = FixedExtentScrollController(initialItem: _verse - 1);
+    _verseTextCtrl = TextEditingController(text: '$_verse');
     widget.store.addListener(_onStoreChanged);
   }
 
@@ -42,6 +45,8 @@ class _TrackerScreenState extends State<TrackerScreen> {
     widget.store.removeListener(_onStoreChanged);
     _surahCtrl.dispose();
     _verseCtrl.dispose();
+    _verseTextCtrl.dispose();
+    _verseFocus.dispose();
     super.dispose();
   }
 
@@ -59,6 +64,7 @@ class _TrackerScreenState extends State<TrackerScreen> {
       _surah = index + 1;
       if (_verse > count) _verse = count;
     });
+    _verseTextCtrl.text = '$_verse';
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_verseCtrl.hasClients && _verseCtrl.selectedItem != _verse - 1) {
         _verseCtrl.jumpToItem(_verse - 1);
@@ -66,15 +72,28 @@ class _TrackerScreenState extends State<TrackerScreen> {
     });
   }
 
+  void _onVerseSubmitted(String text) {
+    final parsed = int.tryParse(text);
+    if (parsed == null || parsed < 1 || parsed > _current.verseCount) {
+      _verseTextCtrl.text = '$_verse';
+      return;
+    }
+    setState(() => _verse = parsed);
+    _verseCtrl.jumpToItem(parsed - 1);
+    _verseFocus.unfocus();
+  }
+
   Future<void> _save() async {
     await widget.store.save(_surah, _verse);
     if (!mounted) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(
-        content: Text('Saved ${_current.name} $_surah:$_verse'),
-        duration: const Duration(seconds: 2),
-      ));
+      ..showSnackBar(
+        SnackBar(
+          content: Text('Saved ${_current.name} $_surah:$_verse'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
   }
 
   void _reset() {
@@ -85,6 +104,7 @@ class _TrackerScreenState extends State<TrackerScreen> {
       _surah = surah;
       _verse = verse;
     });
+    _verseTextCtrl.text = '$verse';
     _surahCtrl.jumpToItem(surah - 1);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_verseCtrl.hasClients) _verseCtrl.jumpToItem(verse - 1);
@@ -104,11 +124,11 @@ class _TrackerScreenState extends State<TrackerScreen> {
         children: [
           // Header with Islamic pattern
           IslamicHeader(
-            title: 'Khathm Tracker',
+            title: 'Khathmul Quran Tracker',
             subtitle: last == null
                 ? 'No position saved yet'
                 : 'Last: ${surahs[last.surah - 1].name} '
-                    '${last.surah}:${last.verse} \u00b7 ${formatDateTime(last.savedAt)}',
+                      '${last.surah}:${last.verse} \u00b7 ${formatDateTime(last.savedAt)}',
             child: _ProgressIndicator(
               progress: progress,
               surahName: _current.name,
@@ -120,94 +140,131 @@ class _TrackerScreenState extends State<TrackerScreen> {
 
           const SizedBox(height: 20),
 
-          // Picker labels
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Row(
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: Text(
-                    'Surah',
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ),
-                Expanded(
-                  flex: 2,
-                  child: Text(
-                    'Verse',
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ),
-              ],
+          // Surah label
+          Text(
+            'Surah',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: theme.colorScheme.primary,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.5,
             ),
           ),
           const SizedBox(height: 4),
 
-          // Pickers
+          // Surah picker — shows ~3 items
           Expanded(
             child: Card(
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-                child: Row(
-                  children: [
-                    Expanded(
-                      flex: 3,
-                      child: CupertinoPicker.builder(
-                        scrollController: _surahCtrl,
-                        itemExtent: _itemExtent,
-                        onSelectedItemChanged: _onSurahChanged,
-                        selectionOverlay: _selectionOverlay(context),
-                        childCount: surahs.length,
-                        itemBuilder: (context, i) => Center(
-                          child: Text(
-                            '${surahs[i].number}. ${surahs[i].name}',
-                            style: theme.textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w500,
-                              fontSize: 19,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
+                child: CupertinoPicker.builder(
+                  scrollController: _surahCtrl,
+                  itemExtent: _itemExtent,
+                  onSelectedItemChanged: _onSurahChanged,
+                  selectionOverlay: _selectionOverlay(context),
+                  childCount: surahs.length,
+                  itemBuilder: (context, i) => Center(
+                    child: Text(
+                      '${surahs[i].number}. ${surahs[i].name}',
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w500,
                       ),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    Container(
-                      width: 1,
-                      margin: const EdgeInsets.symmetric(vertical: 16),
-                      color: theme.colorScheme.outlineVariant,
-                    ),
-                    Expanded(
-                      flex: 2,
-                      child: CupertinoPicker.builder(
-                        scrollController: _verseCtrl,
-                        itemExtent: _itemExtent,
-                        onSelectedItemChanged: (i) =>
-                            setState(() => _verse = i + 1),
-                        selectionOverlay: _selectionOverlay(context),
-                        childCount: _current.verseCount,
-                        itemBuilder: (context, i) => Center(
-                          child: Text(
-                            '${i + 1}',
-                            style: theme.textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w500,
-                              fontSize: 19,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // Verse input — editable text field with scroll buttons
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              child: Row(
+                children: [
+                  Text(
+                    'Verse',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: theme.colorScheme.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  _VerseButton(
+                    icon: Icons.remove_rounded,
+                    onPressed: _verse > 1
+                        ? () {
+                            setState(() => _verse--);
+                            _verseTextCtrl.text = '$_verse';
+                            _verseCtrl.jumpToItem(_verse - 1);
+                          }
+                        : null,
+                    theme: theme,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: _verseTextCtrl,
+                      focusNode: _verseFocus,
+                      keyboardType: TextInputType.number,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: theme.colorScheme.primary,
+                      ),
+                      decoration: InputDecoration(
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: theme.colorScheme.outlineVariant,
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: theme.colorScheme.outlineVariant,
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: theme.colorScheme.primary,
+                            width: 1.5,
+                          ),
+                        ),
+                        suffixText: '/ ${_current.verseCount}',
+                        suffixStyle: theme.textTheme.bodyLarge?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      onSubmitted: _onVerseSubmitted,
+                      onTapOutside: (_) {
+                        _onVerseSubmitted(_verseTextCtrl.text);
+                        _verseFocus.unfocus();
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  _VerseButton(
+                    icon: Icons.add_rounded,
+                    onPressed: _verse < _current.verseCount
+                        ? () {
+                            setState(() => _verse++);
+                            _verseTextCtrl.text = '$_verse';
+                            _verseCtrl.jumpToItem(_verse - 1);
+                          }
+                        : null,
+                    theme: theme,
+                  ),
+                ],
               ),
             ),
           ),
@@ -248,6 +305,40 @@ class _TrackerScreenState extends State<TrackerScreen> {
         border: Border(
           top: BorderSide(color: primary.withAlpha(40), width: 0.5),
           bottom: BorderSide(color: primary.withAlpha(40), width: 0.5),
+        ),
+      ),
+    );
+  }
+}
+
+class _VerseButton extends StatelessWidget {
+  const _VerseButton({
+    required this.icon,
+    required this.onPressed,
+    required this.theme,
+  });
+
+  final IconData icon;
+  final VoidCallback? onPressed;
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 44,
+      height: 44,
+      child: IconButton.filled(
+        onPressed: onPressed,
+        icon: Icon(icon, size: 22),
+        style: IconButton.styleFrom(
+          backgroundColor: theme.colorScheme.primary.withAlpha(20),
+          foregroundColor: theme.colorScheme.primary,
+          disabledBackgroundColor: theme.colorScheme.outlineVariant.withAlpha(
+            40,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
       ),
     );

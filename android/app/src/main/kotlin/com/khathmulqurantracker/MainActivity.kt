@@ -1,4 +1,4 @@
-package com.khathmtracker.khathmtracker
+package com.khathmulqurantracker
 
 import io.flutter.embedding.android.FlutterActivity
 

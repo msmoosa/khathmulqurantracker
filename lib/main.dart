@@ -20,7 +20,7 @@ class KhathmTrackerApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Khathm Tracker',
+      title: 'Khathmul Quran Tracker',
       debugShowCheckedModeBanner: false,
       theme: lightTheme(),
       darkTheme: darkTheme(),
