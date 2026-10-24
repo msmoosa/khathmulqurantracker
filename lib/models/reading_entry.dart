@@ -15,16 +15,16 @@ class ReadingEntry {
   int get absolute => absoluteVerse(surah, verse);
 
   Map<String, dynamic> toJson() => {
-        'surah': surah,
-        'verse': verse,
-        'savedAt': savedAt.toIso8601String(),
-      };
+    'surah': surah,
+    'verse': verse,
+    'savedAt': savedAt.toIso8601String(),
+  };
 
   factory ReadingEntry.fromJson(Map<String, dynamic> json) => ReadingEntry(
-        surah: json['surah'] as int,
-        verse: json['verse'] as int,
-        savedAt: DateTime.parse(json['savedAt'] as String),
-      );
+    surah: json['surah'] as int,
+    verse: json['verse'] as int,
+    savedAt: DateTime.parse(json['savedAt'] as String),
+  );
 }
 
 /// Verses read on a given calendar day.
@@ -62,9 +62,11 @@ List<DailyCount> dailyCounts(List<ReadingEntry> entries) {
   final result = <DailyCount>[];
   // Step by calendar day rather than Duration(days: 1) to stay correct
   // across daylight-saving changes.
-  for (var d = first;
-      !d.isAfter(last);
-      d = DateTime(d.year, d.month, d.day + 1)) {
+  for (
+    var d = first;
+    !d.isAfter(last);
+    d = DateTime(d.year, d.month, d.day + 1)
+  ) {
     result.add(DailyCount(d, totals[d] ?? 0));
   }
   return result;

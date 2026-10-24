@@ -54,88 +54,30 @@ class IslamicPatternPainter extends CustomPainter {
       color != oldDelegate.color || opacity != oldDelegate.opacity;
 }
 
-/// A decorative header banner with gradient and Islamic pattern overlay.
-class IslamicHeader extends StatelessWidget {
-  const IslamicHeader({
-    super.key,
-    required this.title,
-    this.subtitle,
-    this.child,
-  });
-
-  final String title;
-  final String? subtitle;
-  final Widget? child;
+/// Gradient + star pattern used behind the app bar and status bar.
+class IslamicAppBarBackground extends StatelessWidget {
+  const IslamicAppBarBackground({super.key});
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final startColor = isDark ? AppColors.emeraldDark : AppColors.emerald;
-    final endColor = isDark
-        ? const Color(0xFF0A3D28)
-        : AppColors.emeraldLight;
+    final endColor = isDark ? const Color(0xFF021F14) : AppColors.emeraldLight;
 
-    return Container(
-      width: double.infinity,
+    return DecoratedBox(
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [startColor, endColor],
         ),
-        borderRadius: BorderRadius.circular(20),
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: CustomPaint(
-          painter: IslamicPatternPainter(
-            color: Colors.white,
-            opacity: isDark ? 0.05 : 0.08,
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Bismillah ornament
-                Center(
-                  child: Text(
-                    '\u0628\u0650\u0633\u0645\u0650 \u0627\u0644\u0644\u0647\u0650 \u0627\u0644\u0631\u0651\u064E\u062D\u0645\u0670\u0646\u0650 \u0627\u0644\u0631\u0651\u064E\u062D\u064A\u0645\u0650',
-                    style: TextStyle(
-                      fontSize: 20,
-                      color: AppColors.goldLight.withAlpha(200),
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                    letterSpacing: 0.3,
-                  ),
-                ),
-                if (subtitle != null) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle!,
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: Colors.white.withAlpha(180),
-                    ),
-                  ),
-                ],
-                if (child != null) ...[
-                  const SizedBox(height: 16),
-                  child!,
-                ],
-              ],
-            ),
-          ),
+      child: CustomPaint(
+        painter: IslamicPatternPainter(
+          color: Colors.white,
+          opacity: isDark ? 0.05 : 0.08,
         ),
+        child: const SizedBox.expand(),
       ),
     );
   }

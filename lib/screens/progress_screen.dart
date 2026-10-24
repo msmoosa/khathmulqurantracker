@@ -27,15 +27,6 @@ class ProgressScreen extends StatelessWidget {
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // Header
-            IslamicHeader(
-              title: 'Progress',
-              subtitle: daily.isEmpty
-                  ? 'Start tracking to see your journey'
-                  : '${daily.length} day${daily.length == 1 ? '' : 's'} of reading',
-            ),
-            const SizedBox(height: 20),
-
             // Stats row
             _Stats(daily: daily),
             const SizedBox(height: 16),
@@ -62,8 +53,9 @@ class ProgressScreen extends StatelessWidget {
                             height: 180,
                             child: Center(
                               child: Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 24),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 24,
+                                ),
                                 child: Text(
                                   'Save your position on at least two occasions '
                                   'to see daily verses read.',
@@ -115,8 +107,7 @@ class ProgressScreen extends StatelessWidget {
                     for (var i = 0; i < history.length; i++) ...[
                       _HistoryTile(
                         entry: history[i],
-                        isBaseline:
-                            identical(history[i], store.entries.first),
+                        isBaseline: identical(history[i], store.entries.first),
                         onDelete: () => store.delete(history[i]),
                       ),
                       if (i < history.length - 1)
@@ -148,10 +139,12 @@ class _Stats extends StatelessWidget {
     final avg = daily.isEmpty ? 0 : total / daily.length;
     final now = DateTime.now();
     final today = daily
-        .where((d) =>
-            d.day.year == now.year &&
-            d.day.month == now.month &&
-            d.day.day == now.day)
+        .where(
+          (d) =>
+              d.day.year == now.year &&
+              d.day.month == now.month &&
+              d.day.day == now.day,
+        )
         .fold<int>(0, (sum, d) => sum + d.verses);
 
     return Row(
@@ -159,12 +152,16 @@ class _Stats extends StatelessWidget {
         _StatTile(label: 'Today', value: '$today', icon: Icons.today_rounded),
         const SizedBox(width: 10),
         _StatTile(
-            label: 'Daily Avg',
-            value: avg.toStringAsFixed(0),
-            icon: Icons.trending_up_rounded),
+          label: 'Daily Avg',
+          value: avg.toStringAsFixed(0),
+          icon: Icons.trending_up_rounded,
+        ),
         const SizedBox(width: 10),
         _StatTile(
-            label: 'Total', value: '$total', icon: Icons.auto_awesome_rounded),
+          label: 'Total',
+          value: '$total',
+          icon: Icons.auto_awesome_rounded,
+        ),
       ],
     );
   }
@@ -190,11 +187,7 @@ class _StatTile extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
           child: Column(
             children: [
-              Icon(
-                icon,
-                size: 20,
-                color: AppColors.gold,
-              ),
+              Icon(icon, size: 20, color: AppColors.gold),
               const SizedBox(height: 8),
               Text(
                 value,
@@ -225,6 +218,7 @@ class _DailyChart extends StatelessWidget {
   final List<DailyCount> daily;
 
   static const _barSlot = 36.0;
+  static const _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
   @override
   Widget build(BuildContext context) {
@@ -232,100 +226,121 @@ class _DailyChart extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
     final maxVerses = daily.map((d) => d.verses).fold<int>(0, math.max);
     final maxY = maxVerses == 0 ? 10.0 : maxVerses * 1.2;
-    final barColor = isDark ? AppColors.emeraldLight : AppColors.emerald;
+    final barColor = isDark ? AppColors.emeraldBright : AppColors.emerald;
 
-    return LayoutBuilder(builder: (context, constraints) {
-      final width = math.max(constraints.maxWidth, daily.length * _barSlot);
-      return SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        reverse: true,
-        child: SizedBox(
-          width: width,
-          height: 220,
-          child: BarChart(
-            BarChartData(
-              maxY: maxY,
-              alignment: BarChartAlignment.spaceAround,
-              gridData: FlGridData(
-                drawVerticalLine: false,
-                getDrawingHorizontalLine: (_) => FlLine(
-                  color: theme.colorScheme.outlineVariant,
-                  strokeWidth: 0.5,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = math.max(constraints.maxWidth, daily.length * _barSlot);
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          reverse: true,
+          child: SizedBox(
+            width: width,
+            height: 220,
+            child: BarChart(
+              BarChartData(
+                maxY: maxY,
+                alignment: BarChartAlignment.spaceAround,
+                gridData: FlGridData(
+                  drawVerticalLine: false,
+                  getDrawingHorizontalLine: (_) => FlLine(
+                    color: theme.colorScheme.outlineVariant,
+                    strokeWidth: 0.5,
+                  ),
                 ),
-              ),
-              borderData: FlBorderData(show: false),
-              titlesData: FlTitlesData(
-                topTitles: const AxisTitles(),
-                rightTitles: const AxisTitles(),
-                leftTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    reservedSize: 36,
-                    getTitlesWidget: (value, meta) => Text(
-                      value.toInt().toString(),
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+                borderData: FlBorderData(show: false),
+                titlesData: FlTitlesData(
+                  topTitles: const AxisTitles(),
+                  rightTitles: const AxisTitles(),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 36,
+                      getTitlesWidget: (value, meta) => Text(
+                        value.toInt().toString(),
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 40,
+                      getTitlesWidget: (value, meta) {
+                        final i = value.toInt();
+                        if (i < 0 || i >= daily.length) {
+                          return const SizedBox.shrink();
+                        }
+                        // Day and weekday on two short lines so labels fit
+                        // the bar slot; the full date is in the tooltip.
+                        final day = daily[i].day;
+                        final style = theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          height: 1.2,
+                        );
+                        return SideTitleWidget(
+                          meta: meta,
+                          space: 6,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                '${day.day}',
+                                style: style?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              Text(_weekdays[day.weekday - 1], style: style),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                barTouchData: BarTouchData(
+                  touchTooltipData: BarTouchTooltipData(
+                    getTooltipColor: (_) => AppColors.emeraldDark,
+                    getTooltipItem: (group, _, rod, __) => BarTooltipItem(
+                      '${formatDay(daily[group.x].day)} · '
+                      '${rod.toY.toInt()} verses',
+                      const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
                       ),
                     ),
                   ),
                 ),
-                bottomTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    reservedSize: 28,
-                    getTitlesWidget: (value, meta) {
-                      final i = value.toInt();
-                      if (i < 0 || i >= daily.length) {
-                        return const SizedBox.shrink();
-                      }
-                      return SideTitleWidget(
-                        meta: meta,
-                        child: Text(
-                          formatDay(daily[i].day),
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
+                barGroups: [
+                  for (var i = 0; i < daily.length; i++)
+                    BarChartGroupData(
+                      x: i,
+                      barRods: [
+                        BarChartRodData(
+                          toY: daily[i].verses.toDouble(),
+                          width: 16,
+                          color: barColor,
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(6),
+                          ),
+                          backDrawRodData: BackgroundBarChartRodData(
+                            show: true,
+                            toY: maxY,
+                            color: barColor.withAlpha(12),
                           ),
                         ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-              barTouchData: BarTouchData(
-                touchTooltipData: BarTouchTooltipData(
-                  getTooltipColor: (_) => AppColors.emeraldDark,
-                  getTooltipItem: (group, _, rod, __) => BarTooltipItem(
-                    '${rod.toY.toInt()} verses',
-                    const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
+                      ],
                     ),
-                  ),
-                ),
+                ],
               ),
-              barGroups: [
-                for (var i = 0; i < daily.length; i++)
-                  BarChartGroupData(x: i, barRods: [
-                    BarChartRodData(
-                      toY: daily[i].verses.toDouble(),
-                      width: 16,
-                      color: barColor,
-                      borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(6)),
-                      backDrawRodData: BackgroundBarChartRodData(
-                        show: true,
-                        toY: maxY,
-                        color: barColor.withAlpha(12),
-                      ),
-                    ),
-                  ]),
-              ],
             ),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
   }
 }
 
@@ -351,12 +366,13 @@ class _HistoryTile extends StatelessWidget {
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.symmetric(horizontal: 20),
         color: theme.colorScheme.errorContainer,
-        child: Icon(Icons.delete_rounded,
-            color: theme.colorScheme.onErrorContainer),
+        child: Icon(
+          Icons.delete_rounded,
+          color: theme.colorScheme.onErrorContainer,
+        ),
       ),
       child: ListTile(
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
         leading: Container(
           width: 40,
           height: 40,
@@ -365,9 +381,7 @@ class _HistoryTile extends StatelessWidget {
             borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(
-            isBaseline
-                ? Icons.flag_rounded
-                : Icons.bookmark_rounded,
+            isBaseline ? Icons.flag_rounded : Icons.bookmark_rounded,
             color: isBaseline ? AppColors.gold : theme.colorScheme.primary,
             size: 20,
           ),

@@ -136,8 +136,7 @@ final List<int> _versesBefore = () {
 }();
 
 /// Total verses in the Quran (6236).
-final int totalVerses =
-    _versesBefore.last + surahs.last.verseCount;
+final int totalVerses = _versesBefore.last + surahs.last.verseCount;
 
 /// Converts a (surah, verse) position into a 1-based index across the
 /// whole Quran, so Al-Fatihah 1 is 1 and An-Nas 6 is [totalVerses].
