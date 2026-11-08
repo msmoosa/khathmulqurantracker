@@ -81,6 +81,14 @@ int pageOf(int surah, int verse) =>
 int juzOf(int surah, int verse) =>
     _lastStartAtOrBefore(juzStarts, VerseRef(surah, verse));
 
+/// Hizb (1-60) that [surah]:[verse] is in, with the quarter reached,
+/// e.g. `5 ¾`.
+String hizbLabel(int surah, int verse) {
+  final q = _lastStartAtOrBefore(hizbQuarterStarts, VerseRef(surah, verse)) - 1;
+  const quarters = ['', ' ¼', ' ½', ' ¾'];
+  return '${q ~/ 4 + 1}${quarters[q % 4]}';
+}
+
 /// First verse of [juz] (1-30).
 VerseRef juzStart(int juz) => _startAt(juzStarts, juz - 1);
 

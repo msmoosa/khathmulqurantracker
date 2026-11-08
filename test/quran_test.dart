@@ -27,6 +27,9 @@ void main() {
     expect(juzOf(2, 141), 1);
     expect(juzOf(2, 142), 2);
     expect(juzOf(78, 1), 30);
+    expect(hizbLabel(1, 1), '1');
+    expect(hizbLabel(3, 1), '5 ¾');
+    expect(hizbLabel(114, 6), '60 ¾');
   });
 
   test('every verse appears on exactly one page', () {
@@ -107,9 +110,10 @@ void main() {
     });
     final prefs = await SharedPreferences.getInstance();
     final reader = ReaderStore(prefs);
+    final tracker = TrackerStore(prefs);
     await tester.pumpWidget(
       KhathmTrackerApp(
-        store: TrackerStore(prefs),
+        store: tracker,
         reminders: ReminderService(prefs),
         reader: reader,
       ),
@@ -124,8 +128,16 @@ void main() {
     await tester.tap(find.text('Al-Baqarah'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Juz 1 · Page 2'), findsOneWidget);
-    expect(find.text('سورة البقرة'), findsWidgets);
+    expect(find.text('Al-Baqarah, Juz 1, Hizb 1, Page 2'), findsOneWidget);
+    expect(find.text('سُورَةُ البقرة'), findsOneWidget);
     expect(reader.lastPage, 2);
+
+    // Holding a word offers to save that verse to the tracker.
+    await tester.longPress(find.text('ٱلْكِتَـٰبُ'));
+    await tester.pumpAndSettle();
+    expect(find.text('Al-Baqarah · Verse 2'), findsOneWidget);
+    await tester.tap(find.text('Mark as read up to here'));
+    await tester.pumpAndSettle();
+    expect(tracker.lastEntry?.verse, 2);
   });
 }

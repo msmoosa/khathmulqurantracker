@@ -19,6 +19,10 @@ class AppColors {
   static const sand = Color(0xFFF0EAE0);
   static const charcoal = Color(0xFF1E1E1E);
 
+  // Mushaf reader: page paper and ink
+  static const paper = Color(0xFFFBF4E4);
+  static const ink = Color(0xFF111111);
+
   // Dark mode surfaces
   static const darkSurface = Color(0xFF0A100D);
   static const darkCard = Color(0xFF121A16);
