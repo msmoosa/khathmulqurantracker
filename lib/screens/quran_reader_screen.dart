@@ -6,16 +6,18 @@ import 'package:flutter/services.dart';
 
 import '../data/mushaf_layout.dart';
 import '../data/quran.dart';
-import '../data/quran_meta.dart';
+import '../data/qpc_words.dart';
 import '../data/surahs.dart';
+import '../state/mushaf_fonts.dart';
 import '../state/reader_store.dart';
 import '../state/tracker_store.dart';
 import '../theme.dart';
 import '../widgets/islamic_patterns.dart';
 
-/// Reads the Quran page by page in the Uthmani script, laid out like the
-/// printed Madani mushaf: the same 604 pages, each with the same 15 lines.
-/// Pages turn right-to-left.
+/// Reads the Quran page by page as the classic Madani mushaf (1405 AH
+/// print of the King Fahd Complex): the same 604 pages, each with the same
+/// 15 lines, drawn in the mushaf's own calligraphy. Pages turn
+/// right-to-left.
 class QuranReaderScreen extends StatefulWidget {
   const QuranReaderScreen({
     super.key,
@@ -35,7 +37,8 @@ class QuranReaderScreen extends StatefulWidget {
 class _QuranReaderScreenState extends State<QuranReaderScreen> {
   late final PageController _pages;
   late int _page;
-  final Future<QuranText> _text = QuranText.load();
+  final _fonts = MushafFonts.instance;
+  final _data = Future.wait([QuranText.load(), QpcWords.load()]);
   VerseRef? _selected;
 
   /// Whether the top bar is showing. It starts visible so the way back is
@@ -47,6 +50,7 @@ class _QuranReaderScreenState extends State<QuranReaderScreen> {
     super.initState();
     _page = widget.initialPage.clamp(1, mushafPageCount);
     _pages = PageController(initialPage: _page - 1);
+    _prefetch(_page);
     // Saved after the first frame: this notifies listeners on the index
     // screen, which must not happen while the route is being built.
     WidgetsBinding.instance.addPostFrameCallback(
@@ -60,7 +64,15 @@ class _QuranReaderScreenState extends State<QuranReaderScreen> {
     super.dispose();
   }
 
+  /// Fetches the fonts of the pages either side, so turning is instant.
+  void _prefetch(int page) {
+    for (final p in [page, page + 1, page - 1, page + 2]) {
+      if (p >= 1 && p <= mushafPageCount) _fonts.ensurePage(p);
+    }
+  }
+
   void _onPageChanged(int index) {
+    _prefetch(index + 1);
     setState(() {
       _page = index + 1;
       _selected = null;
@@ -134,17 +146,20 @@ class _QuranReaderScreenState extends State<QuranReaderScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    final page = FutureBuilder<QuranText>(
-      future: _text,
-      initialData: QuranText.loaded,
+    final page = FutureBuilder<List<Object>>(
+      future: _data,
+      initialData: QuranText.loaded != null && QpcWords.loaded != null
+          ? [QuranText.loaded!, QpcWords.loaded!]
+          : null,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return const Center(child: Text('Could not load the Quran text.'));
         }
-        final text = snapshot.data;
-        if (text == null) {
+        if (snapshot.data == null) {
           return const Center(child: CircularProgressIndicator());
         }
+        final text = snapshot.data![0] as QuranText;
+        final words = snapshot.data![1] as QpcWords;
         // Let a mouse drag turn pages too (web and desktop).
         return ScrollConfiguration(
           behavior: ScrollConfiguration.of(
@@ -156,9 +171,11 @@ class _QuranReaderScreenState extends State<QuranReaderScreen> {
             reverse: true,
             itemCount: mushafPageCount,
             onPageChanged: _onPageChanged,
-            itemBuilder: (context, i) => _BookPage(
+            itemBuilder: (context, i) => _ReaderPage(
               page: i + 1,
               text: text,
+              words: words,
+              fonts: _fonts,
               selected: _selected,
               onVerseLongPress: (ref) => _onVerseTap(text, ref),
             ),
@@ -236,48 +253,140 @@ const _minFittedFontSize = 15.0;
 /// Smallest gap between words, as a multiple of the font size.
 const _gapFactor = 0.18;
 
-/// One page of the mushaf, line for line as printed.
-class _BookPage extends StatelessWidget {
-  const _BookPage({
+/// A line of a mushaf page.
+sealed class _Line {
+  const _Line();
+}
+
+class _HeaderLine extends _Line {
+  const _HeaderLine(this.surah);
+  final int surah;
+}
+
+class _BismillahLine extends _Line {
+  const _BismillahLine();
+}
+
+class _WordsLine extends _Line {
+  const _WordsLine(this.words);
+  final List<_Word> words;
+}
+
+class _Word {
+  const _Word(this.ref, this.text);
+  final VerseRef ref;
+  final String text;
+}
+
+/// Shows a page in the mushaf's own calligraphy once its font is ready,
+/// or in the bundled Uthmani font if the page font cannot be fetched.
+class _ReaderPage extends StatelessWidget {
+  const _ReaderPage({
     required this.page,
     required this.text,
+    required this.words,
+    required this.fonts,
     required this.selected,
     required this.onVerseLongPress,
   });
 
   final int page;
   final QuranText text;
+  final QpcWords words;
+  final MushafFonts fonts;
   final VerseRef? selected;
   final ValueChanged<VerseRef> onVerseLongPress;
 
-  /// Index of the first token after the text lines of this page.
-  int get _pageEnd {
-    if (page == mushafPageCount) return text.tokens.length;
-    return mushafLines[page].firstWhere((l) => l >= 0);
-  }
-
-  /// The tokens of each line, or null for a banner or Bismillah line.
-  List<List<MushafToken>?> get _lineTokens {
-    final lines = mushafLines[page - 1];
-    final result = <List<MushafToken>?>[];
-    for (var i = 0; i < lines.length; i++) {
-      if (lines[i] < 0) {
-        result.add(null);
-        continue;
+  List<_Line> _lines({required bool calligraphy}) {
+    final layout = mushafLines[page - 1];
+    final result = <_Line>[];
+    for (var i = 0; i < layout.length; i++) {
+      final value = layout[i];
+      if (value == bismillahLine) {
+        result.add(const _BismillahLine());
+      } else if (value < 0) {
+        result.add(_HeaderLine(-value));
+      } else if (calligraphy) {
+        result.add(
+          _WordsLine([
+            for (final w in words.line(page, i + 1)!) _Word(w.ref, w.glyphs),
+          ]),
+        );
+      } else {
+        // Fallback: the tokens from this line's start to the next line's.
+        final next = layout
+            .skip(i + 1)
+            .firstWhere(
+              (l) => l >= 0,
+              orElse: () => page == mushafPageCount
+                  ? text.tokens.length
+                  : mushafLines[page].firstWhere((l) => l >= 0),
+            );
+        result.add(
+          _WordsLine([
+            for (final t in text.tokens.sublist(value, next))
+              _Word(t.ref, t.text),
+          ]),
+        );
       }
-      final next = lines
-          .skip(i + 1)
-          .firstWhere((l) => l >= 0, orElse: () => _pageEnd);
-      result.add(text.tokens.sublist(lines[i], next));
     }
     return result;
   }
 
   @override
   Widget build(BuildContext context) {
+    return FutureBuilder<bool>(
+      future: fonts.ensurePage(page),
+      initialData: fonts.isPageReady(page) ? true : null,
+      builder: (context, snapshot) {
+        final ready = snapshot.data;
+        if (ready == null) {
+          return _BookPage(page: page, lines: null);
+        }
+        return ListenableBuilder(
+          listenable: fonts,
+          builder: (context, _) => _BookPage(
+            page: page,
+            lines: _lines(calligraphy: ready),
+            fontFamily: ready ? MushafFonts.pageFamily(page) : quranFontFamily,
+            fallbackNotice: !ready,
+            selected: selected,
+            onVerseLongPress: onVerseLongPress,
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// One page of the mushaf, line for line as printed.
+class _BookPage extends StatelessWidget {
+  const _BookPage({
+    required this.page,
+    required this.lines,
+    this.fontFamily = quranFontFamily,
+    this.fallbackNotice = false,
+    this.selected,
+    this.onVerseLongPress,
+  });
+
+  final int page;
+
+  /// The page's lines, or null while its font is loading.
+  final List<_Line>? lines;
+  final String fontFamily;
+
+  /// Whether to say that the page is shown in the fallback script.
+  final bool fallbackNotice;
+  final VerseRef? selected;
+  final ValueChanged<VerseRef>? onVerseLongPress;
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final start = pageStart(page);
     final surah = surahs[pageSurah(page) - 1];
+    final muted = theme.colorScheme.onSurfaceVariant;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(10, 6, 10, 4),
@@ -290,47 +399,67 @@ class _BookPage extends StatelessWidget {
             'Hizb ${hizbLabel(start.surah, start.verse)}, Page $page',
             textAlign: TextAlign.center,
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+              color: muted,
               letterSpacing: 0.4,
             ),
           ),
           const SizedBox(height: 6),
           Expanded(
-            child: Directionality(
-              textDirection: TextDirection.rtl,
-              child: LayoutBuilder(
-                builder: (context, constraints) =>
-                    _buildLines(context, constraints),
+            child: lines == null
+                ? const Center(
+                    child: SizedBox.square(
+                      dimension: 28,
+                      child: CircularProgressIndicator(strokeWidth: 2.5),
+                    ),
+                  )
+                : Directionality(
+                    textDirection: TextDirection.rtl,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) =>
+                          _buildLines(context, constraints, lines!),
+                    ),
+                  ),
+          ),
+          if (fallbackNotice)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                'Simplified script: connect to the internet to load this '
+                "page's mushaf font.",
+                textAlign: TextAlign.center,
+                style: theme.textTheme.labelSmall?.copyWith(color: muted),
               ),
             ),
-          ),
         ],
       ),
     );
   }
 
-  Widget _buildLines(BuildContext context, BoxConstraints constraints) {
+  Widget _buildLines(
+    BuildContext context,
+    BoxConstraints constraints,
+    List<_Line> lines,
+  ) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final width = constraints.maxWidth;
-    final lineTokens = _lineTokens;
 
     // Size the text so the widest line fits the width and all 15 lines fit
     // the height, then justify every line to the full width like print.
     const baseSize = 20.0;
-    final base = TextStyle(fontFamily: quranFontFamily, fontSize: baseSize);
-    // Natural width of every token, with its share of the minimum gap.
-    final tokenWidths = [
-      for (final tokens in lineTokens)
-        tokens == null
-            ? const <double>[]
-            : [
-                for (final t in tokens)
-                  _measure(t.text, base) + _gapFactor * baseSize,
-              ],
+    final base = TextStyle(fontFamily: fontFamily, fontSize: baseSize);
+    // Natural width of every word, with its share of the minimum gap.
+    final wordWidths = [
+      for (final line in lines)
+        line is _WordsLine
+            ? [
+                for (final w in line.words)
+                  _measure(w.text, base) + _gapFactor * baseSize,
+              ]
+            : const <double>[],
     ];
     final natural = [
-      for (final widths in tokenWidths) widths.fold(0.0, (a, b) => a + b),
+      for (final widths in wordWidths) widths.fold(0.0, (a, b) => a + b),
     ];
     final widest = natural.fold(0.0, math.max);
     final widthFit = widest == 0 ? 28.0 : baseSize * width * 0.99 / widest;
@@ -349,19 +478,19 @@ class _BookPage extends StatelessWidget {
 
     final ink = isDark ? AppColors.paper : AppColors.ink;
     final wordStyle = TextStyle(
-      fontFamily: quranFontFamily,
+      fontFamily: fontFamily,
       fontSize: fontSize,
       height: 1,
       color: ink,
     );
     final highlight = AppColors.gold.withAlpha(isDark ? 80 : 70);
 
-    Widget token(MushafToken t) {
-      final isSelected = selected == t.ref;
+    Widget word(_Word w) {
+      final isSelected = selected == w.ref;
       return GestureDetector(
         // Opaque so the whole cell, not just the glyphs, can be held.
         behavior: HitTestBehavior.opaque,
-        onLongPress: () => onVerseLongPress(t.ref),
+        onLongPress: () => onVerseLongPress?.call(w.ref),
         child: Container(
           height: lineHeight,
           alignment: Alignment.center,
@@ -373,7 +502,7 @@ class _BookPage extends StatelessWidget {
                 )
               : null,
           child: Text(
-            t.text,
+            w.text,
             textScaler: TextScaler.noScaling,
             softWrap: false,
             overflow: TextOverflow.visible,
@@ -383,56 +512,50 @@ class _BookPage extends StatelessWidget {
       );
     }
 
-    final lines = mushafLines[page - 1];
     final rows = <Widget>[];
-    for (var i = 0; i < lines.length; i++) {
-      final tokens = lineTokens[i];
-      Widget row;
-      if (lines[i] == bismillahLine) {
-        row = Center(
-          child: Text(
-            text.bismillah,
-            textScaler: TextScaler.noScaling,
-            style: wordStyle,
-          ),
-        );
-      } else if (tokens == null) {
-        row = _SurahHeader(
-          surah: -lines[i],
+    for (final (i, line) in lines.indexed) {
+      final Widget row = switch (line) {
+        _BismillahLine() => _glyphToWidth(
+          '\uFDFD',
+          MushafFonts.bismillahFamily,
+          // As wide as in print, but never taller than its line.
+          math.min(width * 0.82, lineHeight * 9),
+          ink,
+        ),
+        _HeaderLine(:final surah) => _SurahHeader(
+          surah: surah,
           height: lineHeight * 0.95,
           color: ink,
-        );
-      } else {
-        // Short lines (the opening pages, or where a surah ends) are
-        // centred rather than stretched.
-        final short =
-            page <= 2 || natural[i] * fontSize / baseSize < width * 0.75;
-        row = short
-            // Scaled down rather than clipped if a line ever measures
-            // wider than expected (e.g. a fallback font).
-            ? FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Row(
-                  children: [
-                    for (final (k, t) in tokens.indexed) ...[
-                      if (k > 0) SizedBox(width: fontSize * 0.2),
-                      token(t),
+        ),
+        _WordsLine(:final words) =>
+          // Short lines (the opening pages, or where a surah ends) are
+          // centred rather than stretched.
+          page <= 2 || natural[i] * fontSize / baseSize < width * 0.75
+              // Scaled down rather than clipped if a line ever measures
+              // wider than expected (e.g. a fallback font).
+              ? FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Row(
+                    children: [
+                      for (final (k, w) in words.indexed) ...[
+                        if (k > 0) SizedBox(width: fontSize * 0.2),
+                        word(w),
+                      ],
                     ],
+                  ),
+                )
+              // Justify by giving each word a share of the spare width in
+              // proportion to its size, so the whole line can be held.
+              : Row(
+                  children: [
+                    for (final (k, w) in words.indexed)
+                      Expanded(
+                        flex: math.max(1, (wordWidths[i][k] * 10).round()),
+                        child: word(w),
+                      ),
                   ],
                 ),
-              )
-            // Justify by giving each word a share of the spare width in
-            // proportion to its size, so the whole line can be held.
-            : Row(
-                children: [
-                  for (final (k, t) in tokens.indexed)
-                    Expanded(
-                      flex: math.max(1, (tokenWidths[i][k] * 10).round()),
-                      child: token(t),
-                    ),
-                ],
-              );
-      }
+      };
       rows.add(SizedBox(height: lineHeight, child: row));
     }
 
@@ -443,6 +566,40 @@ class _BookPage extends StatelessWidget {
     );
     if (scrolls) return SingleChildScrollView(child: column);
     return Align(alignment: Alignment.topCenter, child: column);
+  }
+
+  /// Draws a single decorative glyph (a surah frame or the Bismillah) at
+  /// [targetWidth]. These glyphs sit in very tall line boxes, so they are
+  /// sized by their measured width and allowed to overflow vertically.
+  static Widget _glyphToWidth(
+    String glyph,
+    String family,
+    double targetWidth,
+    Color color,
+  ) {
+    const probe = 100.0;
+    final measured = _measure(
+      glyph,
+      TextStyle(fontFamily: family, fontSize: probe),
+    );
+    final size = measured == 0 ? probe : probe * targetWidth / measured;
+    return ClipRect(
+      child: OverflowBox(
+        maxHeight: double.infinity,
+        child: Center(
+          child: Text(
+            glyph,
+            textScaler: TextScaler.noScaling,
+            style: TextStyle(
+              fontFamily: family,
+              fontSize: size,
+              height: 1,
+              color: color,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   static double _measure(String s, TextStyle style) {
@@ -478,14 +635,15 @@ class _SurahHeader extends StatelessWidget {
         child: CustomPaint(
           painter: _SurahFramePainter(color),
           child: Center(
+            // "سورة <name>" in the 1405 AH calligraphy.
             child: Text(
-              'سُورَةُ ${surahArabicNames[surah - 1]}',
-              textDirection: TextDirection.rtl,
+              'surah${surah.toString().padLeft(3, '0')}',
+              textDirection: TextDirection.ltr,
               textScaler: TextScaler.noScaling,
               style: TextStyle(
-                fontFamily: quranFontFamily,
-                fontSize: height * 0.36,
-                height: 1.1,
+                fontFamily: MushafFonts.surahNameFamily,
+                fontSize: height * 0.62,
+                height: 1,
                 color: color,
               ),
             ),

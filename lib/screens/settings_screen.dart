@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:in_app_review/in_app_review.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../data/quran.dart';
+import '../state/mushaf_fonts.dart';
 import '../state/reminder_service.dart';
 
 const _playStoreUrl =
@@ -132,6 +134,12 @@ class SettingsScreen extends StatelessWidget {
                     ),
             ),
             const SizedBox(height: 24),
+            if (MushafFonts.canSaveOffline) ...[
+              _sectionLabel(theme, 'Mushaf'),
+              const SizedBox(height: 8),
+              const Card(clipBehavior: Clip.antiAlias, child: _OfflineTile()),
+              const SizedBox(height: 24),
+            ],
             _sectionLabel(theme, 'About'),
             const SizedBox(height: 8),
             Card(
@@ -160,14 +168,94 @@ class SettingsScreen extends StatelessWidget {
                     leading: Icon(Icons.info_outline_rounded),
                     title: Text('Quran text'),
                     subtitle: Text(
-                      'Uthmani text from the Tanzil Project (tanzil.net), '
-                      'CC BY 3.0. Font: Amiri Quran (SIL OFL).',
+                      'Classic Madani mushaf (1405 AH) fonts by the King '
+                      'Fahd Glorious Quran Printing Complex, with page '
+                      'layout from quran.com and the Quranic Universal '
+                      'Library (qul.tarteel.ai). Uthmani text from the '
+                      'Tanzil Project (tanzil.net), CC BY 3.0. Fallback '
+                      'font: Amiri Quran (SIL OFL).',
                     ),
                   ),
                 ],
               ),
             ),
           ],
+        );
+      },
+    );
+  }
+}
+
+/// Saves every mushaf page font so the reader works without internet.
+class _OfflineTile extends StatefulWidget {
+  const _OfflineTile();
+
+  @override
+  State<_OfflineTile> createState() => _OfflineTileState();
+}
+
+class _OfflineTileState extends State<_OfflineTile> {
+  final _fonts = MushafFonts.instance;
+  int? _saved;
+
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+  }
+
+  Future<void> _refresh() async {
+    final saved = await _fonts.savedPageCount();
+    if (mounted) setState(() => _saved = saved);
+  }
+
+  Future<void> _download() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final ok = await _fonts.downloadAll();
+    await _refresh();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          ok
+              ? 'The mushaf is saved for offline reading'
+              : 'Some pages could not be downloaded. Try again later.',
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListenableBuilder(
+      listenable: _fonts,
+      builder: (context, _) {
+        final progress = _fonts.downloadProgress;
+        final saved = progress ?? _saved;
+        final complete = saved == mushafPageCount;
+        return ListTile(
+          leading: const Icon(Icons.download_for_offline_outlined),
+          title: const Text('Save for offline reading'),
+          subtitle: Text(
+            saved == null
+                ? 'Pages download as you read them'
+                : complete
+                ? 'All $mushafPageCount pages saved'
+                : '$saved of $mushafPageCount pages saved · about 70 MB '
+                      'in total',
+          ),
+          trailing: progress != null
+              ? SizedBox.square(
+                  dimension: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    value: progress / mushafPageCount,
+                  ),
+                )
+              : complete
+              ? Icon(Icons.check_circle, color: theme.colorScheme.primary)
+              : const Icon(Icons.chevron_right_rounded),
+          onTap: progress == null && !complete ? _download : null,
         );
       },
     );

@@ -41,6 +41,8 @@ dependencies:
   flutter_timezone: ^5.1.1
   in_app_review: ^2.0.12
   share_plus: ^12.0.2
+  http: ^1.6.0
+  path_provider: ^2.1.6
 
 dev_dependencies:
   flutter_test:
@@ -76,12 +78,24 @@ flutter:
   assets:
     # Tanzil Quran Text (Uthmani), tanzil.net, CC BY 3.0. Kept verbatim.
     - assets/quran/quran-uthmani.txt
+    # QPC V1 glyph codes per mushaf line (quran.com / qul.tarteel.ai).
+    - assets/quran/qpc-v1-words.txt
 
   fonts:
     # Amiri Quran, SIL Open Font License (assets/fonts/AmiriQuran-OFL.txt).
     - family: AmiriQuran
       fonts:
         - asset: assets/fonts/AmiriQuran-Regular.ttf
+    # Bismillah of the 1405 AH Madani mushaf (via qul.tarteel.ai). The page
+    # fonts are downloaded at run time; see lib/state/mushaf_fonts.dart.
+    - family: QPCBismillah
+      fonts:
+        - asset: assets/fonts/QPCBismillah.ttf
+    # Surah names in the 1405 AH calligraphy: the text "surah003" draws
+    # "سورة آل عمران" (quran.com).
+    - family: QPCSurahNames
+      fonts:
+        - asset: assets/fonts/QPCSurahNames.ttf
 
   # To add assets to your application, add an assets section, like this:
   # assets:

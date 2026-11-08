@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Reschedule the daily reminder after a reboot. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <!-- Downloads the mushaf page fonts as they are read. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="Khathmul Quran Tracker"
         android:name="${applicationName}"

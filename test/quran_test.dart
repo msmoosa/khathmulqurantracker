@@ -3,9 +3,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:khathmtracker/data/mushaf_layout.dart';
+import 'package:khathmtracker/data/qpc_words.dart';
 import 'package:khathmtracker/data/quran.dart';
 import 'package:khathmtracker/data/quran_meta.dart';
 import 'package:khathmtracker/main.dart';
+import 'package:khathmtracker/state/mushaf_fonts.dart';
 import 'package:khathmtracker/state/reader_store.dart';
 import 'package:khathmtracker/state/reminder_service.dart';
 import 'package:khathmtracker/state/tracker_store.dart';
@@ -94,6 +96,26 @@ void main() {
     expect(text.tokens.first.text, isNot(startsWith('\u06DD')));
   });
 
+  test('mushaf glyph codes fill exactly the text lines of each page', () {
+    final words = QpcWords.parse(
+      File('assets/quran/qpc-v1-words.txt').readAsStringSync(),
+    );
+    var count = 0;
+    for (var page = 1; page <= mushafPageCount; page++) {
+      final layout = mushafLines[page - 1];
+      for (var i = 0; i < layout.length; i++) {
+        final line = words.line(page, i + 1);
+        expect(line == null, layout[i] < 0, reason: 'page $page line ${i + 1}');
+        count += line?.length ?? 0;
+      }
+      final first = layout.indexWhere((l) => l >= 0) + 1;
+      expect(words.line(page, first)!.first.ref, pageStart(page));
+    }
+    // Every word and verse-end marker of the Quran; quran.com counts
+    // "بعد ما" and "إل ياسين" as single words.
+    expect(count, mushafTokenCount - 4);
+  });
+
   test('formats Arabic-Indic numbers', () {
     expect(arabicNumber(7), '٧');
     expect(arabicNumber(286), '٢٨٦');
@@ -102,6 +124,8 @@ void main() {
   testWidgets('opens a surah from the index and remembers the page', (
     tester,
   ) async {
+    // No network in tests: pages use the bundled fallback script.
+    MushafFonts.instance = MushafFonts(enabled: false);
     tester.view.physicalSize = const Size(1179, 2556);
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
@@ -124,12 +148,14 @@ void main() {
     await tester.pump();
     expect(find.text('Al-Fatihah'), findsNothing);
 
-    await tester.runAsync(() => QuranText.load());
+    await tester.runAsync(
+      () => Future.wait([QuranText.load(), QpcWords.load()]),
+    );
     await tester.tap(find.text('Al-Baqarah'));
     await tester.pumpAndSettle();
 
     expect(find.text('Al-Baqarah, Juz 1, Hizb 1, Page 2'), findsOneWidget);
-    expect(find.text('سُورَةُ البقرة'), findsOneWidget);
+    expect(find.text('surah002'), findsOneWidget);
     expect(reader.lastPage, 2);
 
     // Holding a word offers to save that verse to the tracker.
