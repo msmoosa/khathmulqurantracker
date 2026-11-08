@@ -155,6 +155,15 @@ class SettingsScreen extends StatelessWidget {
                       onTap: () => _share(context),
                     ),
                   ),
+                  const Divider(height: 0.5, indent: 16, endIndent: 16),
+                  const ListTile(
+                    leading: Icon(Icons.info_outline_rounded),
+                    title: Text('Quran text'),
+                    subtitle: Text(
+                      'Uthmani text from the Tanzil Project (tanzil.net), '
+                      'CC BY 3.0. Font: Amiri Quran (SIL OFL).',
+                    ),
+                  ),
                 ],
               ),
             ),

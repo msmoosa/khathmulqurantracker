@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:khathmtracker/main.dart';
+import 'package:khathmtracker/state/reader_store.dart';
 import 'package:khathmtracker/state/reminder_service.dart';
 import 'package:khathmtracker/state/tracker_store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -24,6 +25,7 @@ bool _isEnabled(WidgetTester tester, String label) => tester
 void main() {
   late TrackerStore store;
   late ReminderService reminders;
+  late ReaderStore reader;
 
   setUp(() async {
     // Skip the first-launch permission dialog; the plugin isn't available.
@@ -33,14 +35,17 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     store = TrackerStore(prefs);
     reminders = ReminderService(prefs);
+    reader = ReaderStore(prefs);
   });
 
   testWidgets('saves a position and resets back to it', (tester) async {
     _usePhoneSize(tester);
     await tester.pumpWidget(
-      KhathmTrackerApp(store: store, reminders: reminders),
+      KhathmTrackerApp(store: store, reminders: reminders, reader: reader),
     );
 
+    await tester.tap(find.text('Tracker'));
+    await tester.pumpAndSettle();
     expect(find.text('Verse / 7'), findsOneWidget);
 
     await tester.tap(find.text('Save'));
@@ -69,7 +74,7 @@ void main() {
   testWidgets('settings shows the default 8 PM reminder', (tester) async {
     _usePhoneSize(tester);
     await tester.pumpWidget(
-      KhathmTrackerApp(store: store, reminders: reminders),
+      KhathmTrackerApp(store: store, reminders: reminders, reader: reader),
     );
 
     await tester.tap(find.text('Settings').last);

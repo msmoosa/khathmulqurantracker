@@ -4,8 +4,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'demo/demo_data.dart';
 import 'screens/progress_screen.dart';
+import 'screens/quran_index_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/tracker_screen.dart';
+import 'state/reader_store.dart';
 import 'state/reminder_service.dart';
 import 'state/tracker_store.dart';
 import 'theme.dart';
@@ -22,7 +24,13 @@ Future<void> main() async {
           seed: demoEntries(DateTime.now()),
         )
       : TrackerStore(prefs);
-  runApp(KhathmTrackerApp(store: store, reminders: reminders));
+  runApp(
+    KhathmTrackerApp(
+      store: store,
+      reminders: reminders,
+      reader: ReaderStore(prefs),
+    ),
+  );
   // Set up reminders after the first frame so a slow or failing plugin call
   // can never leave the app stuck on the launch screen.
   reminders.init().catchError((Object e) {
@@ -35,10 +43,12 @@ class KhathmTrackerApp extends StatelessWidget {
     super.key,
     required this.store,
     required this.reminders,
+    required this.reader,
   });
 
   final TrackerStore store;
   final ReminderService reminders;
+  final ReaderStore reader;
 
   @override
   Widget build(BuildContext context) {
@@ -47,23 +57,34 @@ class KhathmTrackerApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: lightTheme(),
       darkTheme: darkTheme(),
-      home: HomeShell(store: store, reminders: reminders),
+      home: HomeShell(store: store, reminders: reminders, reader: reader),
     );
   }
 }
 
 class HomeShell extends StatefulWidget {
-  const HomeShell({super.key, required this.store, required this.reminders});
+  const HomeShell({
+    super.key,
+    required this.store,
+    required this.reminders,
+    required this.reader,
+  });
 
   final TrackerStore store;
   final ReminderService reminders;
+  final ReaderStore reader;
 
   @override
   State<HomeShell> createState() => _HomeShellState();
 }
 
 class _HomeShellState extends State<HomeShell> {
-  static const _titles = ['Khathmul Quran Tracker', 'Progress', 'Settings'];
+  static const _titles = [
+    'Quran',
+    'Khathmul Quran Tracker',
+    'Progress',
+    'Settings',
+  ];
 
   int _tab = kDemoTab;
 
@@ -131,6 +152,7 @@ class _HomeShellState extends State<HomeShell> {
         child: IndexedStack(
           index: _tab,
           children: [
+            QuranIndexScreen(reader: widget.reader, tracker: widget.store),
             TrackerScreen(store: widget.store),
             ProgressScreen(store: widget.store),
             SettingsScreen(reminders: widget.reminders),
@@ -150,6 +172,11 @@ class _HomeShellState extends State<HomeShell> {
           selectedIndex: _tab,
           onDestinationSelected: (i) => setState(() => _tab = i),
           destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.auto_stories_outlined),
+              selectedIcon: Icon(Icons.auto_stories),
+              label: 'Read',
+            ),
             NavigationDestination(
               icon: Icon(Icons.menu_book_outlined),
               selectedIcon: Icon(Icons.menu_book),

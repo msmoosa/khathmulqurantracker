@@ -13,7 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Architecture
 
-Flutter app for tracking Quran reading progress (khathm completion). Two-screen app with bottom navigation.
+Flutter app for reading the Quran and tracking reading progress (khathm completion). Four tabs with bottom navigation: Read, Tracker, Progress, Settings.
 
 **State management:** Single `TrackerStore` (extends `ChangeNotifier`) holds all reading history, persisted to `SharedPreferences` as JSON. Screens listen via `addListener`/`ListenableBuilder`.
 
@@ -21,7 +21,11 @@ Flutter app for tracking Quran reading progress (khathm completion). Two-screen 
 
 **Key data:** `surahs.dart` has static metadata for all 114 surahs (number, name, verseCount). `absoluteVerse()` and `totalVerses` convert surah:verse to a linear position for progress calculation.
 
+**Quran text:** `assets/quran/quran-uthmani.txt` is the Tanzil Uthmani text (CC BY 3.0, must stay verbatim, including its copyright block), rendered with the bundled Amiri Quran font (`quranFontFamily`). `data/quran.dart` loads it (`QuranText.load()`) and lifts the Bismillah out of each surah's first verse for display. `data/quran_meta.dart` is generated from Tanzil's `quran-data.js` (Arabic names, Meccan/Medinan, the 604 Madani mushaf page starts and 30 juz starts); `pageOf`, `juzOf` and `pageSegments` use it. `ReaderStore` persists the last page read and text size.
+
 **Screens:**
+- `QuranIndexScreen` (first tab) — continue-reading card, Surah/Juz toggle, searchable surah index. Opens `QuranReaderScreen`.
+- `QuranReaderScreen` — `PageView` of the 604 mushaf pages (reversed so pages turn right-to-left). Tapping a verse offers "Mark as read up to here" (saves to `TrackerStore`) and copy.
 - `TrackerScreen` — surah CupertinoPicker (~3 visible items) + verse TextField with +/- stepper buttons (long-press repeats). Shows progress in an Islamic-themed gradient header.
 - `ProgressScreen` — daily stats row, bar chart (fl_chart), and swipe-to-delete history list.
 

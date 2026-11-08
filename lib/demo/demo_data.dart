@@ -6,8 +6,9 @@ import '../models/reading_entry.dart';
 /// history on the device is left untouched.
 const kDemoMode = bool.fromEnvironment('DEMO');
 
-/// Tab to open on launch (0 Tracker, 1 Progress, 2 Settings), for taking
-/// screenshots of each tab without tapping. Pass `--dart-define=DEMO_TAB=1`.
+/// Tab to open on launch (0 Read, 1 Tracker, 2 Progress, 3 Settings), for
+/// taking screenshots of each tab without tapping. Pass
+/// `--dart-define=DEMO_TAB=1`.
 const kDemoTab = int.fromEnvironment('DEMO_TAB');
 
 /// Verses read on each of the last 14 days (oldest first, today last).

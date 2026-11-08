@@ -73,6 +73,16 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
+  assets:
+    # Tanzil Quran Text (Uthmani), tanzil.net, CC BY 3.0. Kept verbatim.
+    - assets/quran/quran-uthmani.txt
+
+  fonts:
+    # Amiri Quran, SIL Open Font License (assets/fonts/AmiriQuran-OFL.txt).
+    - family: AmiriQuran
+      fonts:
+        - asset: assets/fonts/AmiriQuran-Regular.ttf
+
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg
