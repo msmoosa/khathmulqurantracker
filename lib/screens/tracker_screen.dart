@@ -3,13 +3,21 @@ import 'dart:math' as math;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
+import '../data/quran.dart';
 import '../data/surahs.dart';
+import '../models/reading_entry.dart';
+import '../models/streak.dart';
+import '../state/reader_store.dart';
 import '../state/tracker_store.dart';
+import '../theme.dart';
+import '../widgets/top_toast.dart';
+import 'quran_reader_screen.dart';
 
 class TrackerScreen extends StatefulWidget {
-  const TrackerScreen({super.key, required this.store});
+  const TrackerScreen({super.key, required this.store, required this.reader});
 
   final TrackerStore store;
+  final ReaderStore reader;
 
   @override
   State<TrackerScreen> createState() => _TrackerScreenState();
@@ -23,10 +31,14 @@ class _TrackerScreenState extends State<TrackerScreen> {
   late final FixedExtentScrollController _surahCtrl;
   late final FixedExtentScrollController _verseCtrl;
 
+  /// The latest saved entry the pickers have been synced to.
+  ReadingEntry? _synced;
+
   @override
   void initState() {
     super.initState();
     final last = widget.store.lastEntry;
+    _synced = last;
     _surah = last?.surah ?? 1;
     _verse = last?.verse ?? 1;
     _surahCtrl = FixedExtentScrollController(initialItem: _surah - 1);
@@ -34,7 +46,17 @@ class _TrackerScreenState extends State<TrackerScreen> {
     widget.store.addListener(_onStoreChanged);
   }
 
-  void _onStoreChanged() => setState(() {});
+  /// Moves the pickers to a position saved elsewhere, such as "Mark as read
+  /// up to here" in the reader.
+  void _onStoreChanged() {
+    final last = widget.store.lastEntry;
+    if (last != null && !identical(last, _synced)) {
+      _synced = last;
+      _reset();
+    } else {
+      setState(() {});
+    }
+  }
 
   @override
   void dispose() {
@@ -68,14 +90,21 @@ class _TrackerScreenState extends State<TrackerScreen> {
   Future<void> _save() async {
     await widget.store.save(_surah, _verse);
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text('Saved ${_current.name} $_surah:$_verse'),
-          duration: const Duration(seconds: 2),
-        ),
+    final saved = 'Saved ${_current.name} $_surah:$_verse';
+    final streak = readingStreak(widget.store.daily, DateTime.now()).current;
+    if (streak == 0) {
+      showTopToast(context, saved);
+    } else {
+      showTopToast(
+        context,
+        streak == 1 ? '$saved · Streak started' : '$saved · $streak-day streak',
+        icon: Icons.local_fire_department_rounded,
+        // The toast is dark in light mode and light in dark mode.
+        iconColor: Theme.of(context).brightness == Brightness.dark
+            ? AppColors.goldDark
+            : AppColors.goldLight,
       );
+    }
   }
 
   void _reset() {
@@ -90,6 +119,20 @@ class _TrackerScreenState extends State<TrackerScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_verseCtrl.hasClients) _verseCtrl.jumpToItem(verse - 1);
     });
+  }
+
+  /// Opens the reader on the page of the selected verse, with it highlighted.
+  void _jumpToVerse() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => QuranReaderScreen(
+          initialPage: pageOf(_surah, _verse),
+          highlight: VerseRef(_surah, _verse),
+          reader: widget.reader,
+          tracker: widget.store,
+        ),
+      ),
+    );
   }
 
   @override
@@ -232,6 +275,15 @@ class _TrackerScreenState extends State<TrackerScreen> {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: TextButton.icon(
+              onPressed: _jumpToVerse,
+              icon: const Icon(Icons.auto_stories_rounded, size: 20),
+              label: Text('Jump to $_surah:$_verse in the Quran'),
+            ),
           ),
         ],
       ),

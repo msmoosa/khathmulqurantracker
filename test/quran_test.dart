@@ -8,6 +8,7 @@ import 'package:khathmtracker/data/quran.dart';
 import 'package:khathmtracker/data/quran_meta.dart';
 import 'package:khathmtracker/main.dart';
 import 'package:khathmtracker/state/mushaf_fonts.dart';
+import 'package:khathmtracker/state/appearance_store.dart';
 import 'package:khathmtracker/state/reader_store.dart';
 import 'package:khathmtracker/state/reminder_service.dart';
 import 'package:khathmtracker/state/tracker_store.dart';
@@ -140,6 +141,7 @@ void main() {
         store: tracker,
         reminders: ReminderService(prefs),
         reader: reader,
+        appearance: AppearanceStore(prefs),
       ),
     );
 
@@ -154,7 +156,8 @@ void main() {
     await tester.tap(find.text('Al-Baqarah'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Al-Baqarah, Juz 1, Hizb 1, Page 2'), findsOneWidget);
+    expect(find.text('Al-Baqarah, Juz 1, Hizb 1'), findsOneWidget);
+    expect(find.text('2'), findsOneWidget);
     expect(find.text('surah002'), findsOneWidget);
     expect(reader.lastPage, 2);
 

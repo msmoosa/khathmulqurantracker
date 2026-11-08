@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:khathmtracker/main.dart';
+import 'package:khathmtracker/state/appearance_store.dart';
 import 'package:khathmtracker/state/reader_store.dart';
 import 'package:khathmtracker/state/reminder_service.dart';
 import 'package:khathmtracker/state/tracker_store.dart';
@@ -26,6 +27,7 @@ void main() {
   late TrackerStore store;
   late ReminderService reminders;
   late ReaderStore reader;
+  late AppearanceStore appearance;
 
   setUp(() async {
     // Skip the first-launch permission dialog; the plugin isn't available.
@@ -36,12 +38,18 @@ void main() {
     store = TrackerStore(prefs);
     reminders = ReminderService(prefs);
     reader = ReaderStore(prefs);
+    appearance = AppearanceStore(prefs);
   });
 
   testWidgets('saves a position and resets back to it', (tester) async {
     _usePhoneSize(tester);
     await tester.pumpWidget(
-      KhathmTrackerApp(store: store, reminders: reminders, reader: reader),
+      KhathmTrackerApp(
+        store: store,
+        reminders: reminders,
+        reader: reader,
+        appearance: appearance,
+      ),
     );
 
     await tester.tap(find.text('Tracker'));
@@ -71,10 +79,36 @@ void main() {
     expect(find.textContaining('· starting point'), findsOneWidget);
   });
 
+  testWidgets('tracker follows a position saved elsewhere', (tester) async {
+    _usePhoneSize(tester);
+    await tester.pumpWidget(
+      KhathmTrackerApp(
+        store: store,
+        reminders: reminders,
+        reader: reader,
+        appearance: appearance,
+      ),
+    );
+    await tester.tap(find.text('Tracker'));
+    await tester.pumpAndSettle();
+
+    // As "Mark as read up to here" in the reader does.
+    await store.save(2, 255);
+    await tester.pumpAndSettle();
+    expect(find.text('Verse / 286'), findsOneWidget);
+    expect(find.text('Jump to 2:255 in the Quran'), findsOneWidget);
+    expect(_isEnabled(tester, 'Save'), isFalse);
+  });
+
   testWidgets('settings shows the default 8 PM reminder', (tester) async {
     _usePhoneSize(tester);
     await tester.pumpWidget(
-      KhathmTrackerApp(store: store, reminders: reminders, reader: reader),
+      KhathmTrackerApp(
+        store: store,
+        reminders: reminders,
+        reader: reader,
+        appearance: appearance,
+      ),
     );
 
     await tester.tap(find.text('Settings').last);

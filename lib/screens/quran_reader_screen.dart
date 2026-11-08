@@ -22,11 +22,15 @@ class QuranReaderScreen extends StatefulWidget {
   const QuranReaderScreen({
     super.key,
     required this.initialPage,
+    this.highlight,
     required this.reader,
     required this.tracker,
   });
 
   final int initialPage;
+
+  /// A verse on [initialPage] to highlight until the page is turned.
+  final VerseRef? highlight;
   final ReaderStore reader;
   final TrackerStore tracker;
 
@@ -39,7 +43,7 @@ class _QuranReaderScreenState extends State<QuranReaderScreen> {
   late int _page;
   final _fonts = MushafFonts.instance;
   final _data = Future.wait([QuranText.load(), QpcWords.load()]);
-  VerseRef? _selected;
+  late VerseRef? _selected = widget.highlight;
 
   /// Whether the top bar is showing. It starts visible so the way back is
   /// obvious, hides on the first page turn, and a tap toggles it.
@@ -399,7 +403,7 @@ class _BookPage extends StatelessWidget {
           // Page caption, as in the margin of a printed mushaf.
           Text(
             '${surah.name}, Juz ${juzOf(start.surah, start.verse)}, '
-            'Hizb ${hizbLabel(start.surah, start.verse)}, Page $page',
+            'Hizb ${hizbLabel(start.surah, start.verse)}',
             textAlign: TextAlign.center,
             style: theme.textTheme.bodyMedium?.copyWith(
               color: muted,
@@ -422,6 +426,18 @@ class _BookPage extends StatelessWidget {
                           _buildLines(context, constraints, lines!),
                     ),
                   ),
+          ),
+          // Page number at the foot of the page, as in print.
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              '$page',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: muted,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
           if (fallbackNotice)
             Padding(

@@ -2,8 +2,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:in_app_review/in_app_review.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../data/quran.dart';
+import '../state/appearance_store.dart';
 import '../state/mushaf_fonts.dart';
 import '../state/reminder_service.dart';
 
@@ -13,10 +15,17 @@ const _playStoreUrl =
 const _appStoreId = '6826256750';
 const _appStoreUrl = 'https://apps.apple.com/app/id$_appStoreId';
 
+const _contactEmail = 'mohammadshabaz@gmail.com';
+
 class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({super.key, required this.reminders});
+  const SettingsScreen({
+    super.key,
+    required this.reminders,
+    required this.appearance,
+  });
 
   final ReminderService reminders;
+  final AppearanceStore appearance;
 
   Future<void> _rate() async {
     await InAppReview.instance.openStoreListing(appStoreId: _appStoreId);
@@ -37,6 +46,26 @@ class SettingsScreen extends StatelessWidget {
             : box.localToGlobal(Offset.zero) & box.size,
       ),
     );
+  }
+
+  Future<void> _contact(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final opened = await launchUrl(
+      Uri(
+        scheme: 'mailto',
+        path: _contactEmail,
+        query: 'subject=${Uri.encodeComponent('Khathmul Quran Tracker')}',
+      ),
+    ).catchError((Object _) => false);
+    if (!opened) {
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('No email app found. Write to $_contactEmail'),
+          ),
+        );
+    }
   }
 
   Widget _sectionLabel(ThemeData theme, String text) => Text(
@@ -134,6 +163,41 @@ class SettingsScreen extends StatelessWidget {
                     ),
             ),
             const SizedBox(height: 24),
+            _sectionLabel(theme, 'Appearance'),
+            const SizedBox(height: 8),
+            Card(
+              clipBehavior: Clip.antiAlias,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: ListenableBuilder(
+                  listenable: appearance,
+                  builder: (context, _) => SegmentedButton<ThemeMode>(
+                    showSelectedIcon: false,
+                    segments: const [
+                      ButtonSegment(
+                        value: ThemeMode.light,
+                        icon: Icon(Icons.light_mode_outlined),
+                        label: Text('Light'),
+                      ),
+                      ButtonSegment(
+                        value: ThemeMode.dark,
+                        icon: Icon(Icons.dark_mode_outlined),
+                        label: Text('Dark'),
+                      ),
+                      ButtonSegment(
+                        value: ThemeMode.system,
+                        icon: Icon(Icons.brightness_auto_outlined),
+                        label: Text('System'),
+                      ),
+                    ],
+                    selected: {appearance.themeMode},
+                    onSelectionChanged: (s) =>
+                        appearance.setThemeMode(s.single),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
             if (MushafFonts.canSaveOffline) ...[
               _sectionLabel(theme, 'Mushaf'),
               const SizedBox(height: 8),
@@ -162,6 +226,14 @@ class SettingsScreen extends StatelessWidget {
                       trailing: const Icon(Icons.chevron_right_rounded),
                       onTap: () => _share(context),
                     ),
+                  ),
+                  const Divider(height: 0.5, indent: 16, endIndent: 16),
+                  ListTile(
+                    leading: const Icon(Icons.mail_outline_rounded),
+                    title: const Text('Contact us'),
+                    subtitle: const Text(_contactEmail),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () => _contact(context),
                   ),
                   const Divider(height: 0.5, indent: 16, endIndent: 16),
                   const ListTile(
