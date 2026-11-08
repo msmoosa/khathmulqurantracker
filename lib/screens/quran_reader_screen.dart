@@ -250,6 +250,9 @@ const _lineHeightFactor = 1.9;
 /// landscape), so it is sized to the width and scrolls instead.
 const _minFittedFontSize = 15.0;
 
+/// Line height of the 8-line opening pages, as a multiple of the font size.
+const _openingLineHeightFactor = 2.3;
+
 /// Smallest gap between words, as a multiple of the font size.
 const _gapFactor = 0.18;
 
@@ -465,12 +468,21 @@ class _BookPage extends StatelessWidget {
     final widthFit = widest == 0 ? 28.0 : baseSize * width * 0.99 / widest;
     final heightFit = constraints.maxHeight / _linesPerPage / _lineHeightFactor;
     final scrolls = heightFit < _minFittedFontSize;
+    // The opening pages have only 8 lines. As in print, they are set a
+    // little larger and centred on the page rather than left half empty.
+    final opening = lines.length < _linesPerPage;
+    final openingFit = math.min(
+      constraints.maxHeight / lines.length / _openingLineHeightFactor,
+      heightFit * 1.35,
+    );
     final fontSize = scrolls
         ? math.min(widthFit, 30.0)
-        : math.min(widthFit, heightFit);
+        : math.min(widthFit, opening ? openingFit : heightFit);
     // Spread the lines over the whole page, as in print.
     final lineHeight = scrolls
         ? fontSize * _lineHeightFactor
+        : opening
+        ? fontSize * _openingLineHeightFactor
         : math.max(
             fontSize * _lineHeightFactor,
             constraints.maxHeight / _linesPerPage,
@@ -565,7 +577,10 @@ class _BookPage extends StatelessWidget {
       children: rows,
     );
     if (scrolls) return SingleChildScrollView(child: column);
-    return Align(alignment: Alignment.topCenter, child: column);
+    return Align(
+      alignment: opening ? Alignment.center : Alignment.topCenter,
+      child: column,
+    );
   }
 
   /// Draws a single decorative glyph (a surah frame or the Bismillah) at
