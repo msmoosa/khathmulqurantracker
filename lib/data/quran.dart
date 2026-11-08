@@ -113,9 +113,57 @@ const _arabicDigits = '٠١٢٣٤٥٦٧٨٩';
 String arabicNumber(int n) =>
     n.toString().split('').map((d) => _arabicDigits[int.parse(d)]).join();
 
+/// One word of a mushaf line, or the numbered marker that ends a verse.
+class MushafToken {
+  const MushafToken(this.ref, this.text, {this.isVerseEnd = false});
+
+  final VerseRef ref;
+  final String text;
+  final bool isVerseEnd;
+}
+
+/// Waqf (pause), rub el hizb and sajdah signs, which the Tanzil text writes
+/// as separate space-delimited tokens.
+bool _isMarkOnly(String token) => token.runes.every(
+  (r) => (r >= 0x06D6 && r <= 0x06DC) || r == 0x06DE || r == 0x06E9,
+);
+
+/// Splits a verse into display words, attaching standalone signs to a
+/// neighbouring word so the count matches the mushaf layout data.
+/// Kept in step with the layout generator for `mushaf_layout.dart`.
+List<String> _displayWords(String verse) {
+  final words = <String>[];
+  var pending = '';
+  for (final t in verse.split(' ')) {
+    if (t.isEmpty) continue;
+    if (t == '\u06DE') {
+      // Rub el hizb opens the next word.
+      pending = '$t ';
+    } else if (_isMarkOnly(t) && words.isNotEmpty) {
+      words[words.length - 1] = '${words.last} $t';
+    } else {
+      words.add('$pending$t');
+      pending = '';
+    }
+  }
+  return words;
+}
+
 /// The Uthmani text of the Quran (Tanzil Project, tanzil.net).
 class QuranText {
-  QuranText._(this._verses, this.bismillah);
+  QuranText._(this._verses, this.bismillah) {
+    for (var s = 1; s <= _verses.length; s++) {
+      for (var v = 1; v <= _verses[s - 1].length; v++) {
+        final ref = VerseRef(s, v);
+        for (final word in _displayWords(_verses[s - 1][v - 1])) {
+          tokens.add(MushafToken(ref, word));
+        }
+        tokens.add(
+          MushafToken(ref, '\u06DD${arabicNumber(v)}', isVerseEnd: true),
+        );
+      }
+    }
+  }
 
   /// Parses the Tanzil `sura|aya|text` format.
   factory QuranText.parse(String raw) {
@@ -139,6 +187,10 @@ class QuranText {
   }
 
   final List<List<String>> _verses;
+
+  /// Every word and verse-end marker in order, as indexed by
+  /// [mushafLines].
+  final List<MushafToken> tokens = [];
 
   /// The Bismillah (Al-Fatihah verse 1).
   final String bismillah;

@@ -1,7 +1,10 @@
+import 'dart:math' as math;
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../data/mushaf_layout.dart';
 import '../data/quran.dart';
 import '../data/quran_meta.dart';
 import '../data/surahs.dart';
@@ -10,8 +13,9 @@ import '../state/tracker_store.dart';
 import '../theme.dart';
 import '../widgets/islamic_patterns.dart';
 
-/// Reads the Quran page by page in the Uthmani script, following the
-/// 604-page layout of the Madani mushaf. Pages turn right-to-left.
+/// Reads the Quran page by page in the Uthmani script, laid out like the
+/// printed Madani mushaf: the same 604 pages, each with the same 15 lines.
+/// Pages turn right-to-left.
 class QuranReaderScreen extends StatefulWidget {
   const QuranReaderScreen({
     super.key,
@@ -120,61 +124,6 @@ class _QuranReaderScreenState extends State<QuranReaderScreen> {
     }
   }
 
-  void _showTextSize() {
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-          child: ListenableBuilder(
-            listenable: widget.reader,
-            builder: (context, _) {
-              final size = widget.reader.fontSize;
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Text size',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ',
-                    textDirection: TextDirection.rtl,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontFamily: quranFontFamily,
-                      fontSize: size,
-                      height: 1.8,
-                    ),
-                  ),
-                  Row(
-                    children: [
-                      const Icon(Icons.text_decrease_rounded),
-                      Expanded(
-                        child: Slider(
-                          value: size,
-                          min: ReaderStore.minFontSize,
-                          max: ReaderStore.maxFontSize,
-                          divisions: 12,
-                          onChanged: widget.reader.setFontSize,
-                        ),
-                      ),
-                      const Icon(Icons.text_increase_rounded),
-                    ],
-                  ),
-                ],
-              );
-            },
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -202,13 +151,6 @@ class _QuranReaderScreenState extends State<QuranReaderScreen> {
             ),
           ],
         ),
-        actions: [
-          IconButton(
-            tooltip: 'Text size',
-            icon: const Icon(Icons.format_size_rounded),
-            onPressed: _showTextSize,
-          ),
-        ],
       ),
       body: SafeArea(
         child: FutureBuilder<QuranText>(
@@ -216,33 +158,31 @@ class _QuranReaderScreenState extends State<QuranReaderScreen> {
           initialData: QuranText.loaded,
           builder: (context, snapshot) {
             if (snapshot.hasError) {
-              return Center(child: Text('Could not load the Quran text.'));
+              return const Center(
+                child: Text('Could not load the Quran text.'),
+              );
             }
             final text = snapshot.data;
             if (text == null) {
               return const Center(child: CircularProgressIndicator());
             }
-            return ListenableBuilder(
-              listenable: widget.reader,
-              // Let a mouse drag turn pages too (web and desktop).
-              builder: (context, _) => ScrollConfiguration(
-                behavior: ScrollConfiguration.of(
-                  context,
-                ).copyWith(dragDevices: {...PointerDeviceKind.values}),
-                child: PageView.builder(
-                  controller: _pages,
-                  // A mushaf opens from the right, so the next page is on
-                  // the left.
-                  reverse: true,
-                  itemCount: mushafPageCount,
-                  onPageChanged: _onPageChanged,
-                  itemBuilder: (context, i) => _MushafPage(
-                    page: i + 1,
-                    text: text,
-                    fontSize: widget.reader.fontSize,
-                    selected: _selected,
-                    onVerseTap: (ref) => _onVerseTap(text, ref),
-                  ),
+            // Let a mouse drag turn pages too (web and desktop).
+            return ScrollConfiguration(
+              behavior: ScrollConfiguration.of(
+                context,
+              ).copyWith(dragDevices: {...PointerDeviceKind.values}),
+              child: PageView.builder(
+                controller: _pages,
+                // A mushaf opens from the right, so the next page is on
+                // the left.
+                reverse: true,
+                itemCount: mushafPageCount,
+                onPageChanged: _onPageChanged,
+                itemBuilder: (context, i) => _BookPage(
+                  page: i + 1,
+                  text: text,
+                  selected: _selected,
+                  onVerseTap: (ref) => _onVerseTap(text, ref),
                 ),
               ),
             );
@@ -255,110 +195,115 @@ class _QuranReaderScreenState extends State<QuranReaderScreen> {
 
 enum _VerseAction { track, copy }
 
-class _MushafPage extends StatefulWidget {
-  const _MushafPage({
+/// Lines per page of the Madani mushaf.
+const _linesPerPage = 15;
+
+/// Line height as a multiple of the font size; the Uthmani script needs
+/// room above and below for its marks.
+const _lineHeightFactor = 1.9;
+
+/// Below this font size a page no longer fits the screen legibly (e.g. in
+/// landscape), so it is sized to the width and scrolls instead.
+const _minFittedFontSize = 15.0;
+
+/// Smallest gap between words, as a multiple of the font size.
+const _gapFactor = 0.18;
+
+/// One page of the mushaf, line for line as printed.
+class _BookPage extends StatelessWidget {
+  const _BookPage({
     required this.page,
     required this.text,
-    required this.fontSize,
     required this.selected,
     required this.onVerseTap,
   });
 
   final int page;
   final QuranText text;
-  final double fontSize;
   final VerseRef? selected;
   final ValueChanged<VerseRef> onVerseTap;
 
-  @override
-  State<_MushafPage> createState() => _MushafPageState();
-}
-
-class _MushafPageState extends State<_MushafPage> {
-  final _recognizers = <VerseRef, TapGestureRecognizer>{};
-
-  @override
-  void dispose() {
-    for (final r in _recognizers.values) {
-      r.dispose();
-    }
-    super.dispose();
+  /// Index of the first token after the text lines of this page.
+  int get _pageEnd {
+    if (page == mushafPageCount) return text.tokens.length;
+    return mushafLines[page].firstWhere((l) => l >= 0);
   }
 
-  TapGestureRecognizer _recognizer(VerseRef ref) =>
-      (_recognizers[ref] ??= TapGestureRecognizer())
-        ..onTap = () => widget.onVerseTap(ref);
+  /// The tokens of each line, or null for a banner or Bismillah line.
+  List<List<MushafToken>?> get _lineTokens {
+    final lines = mushafLines[page - 1];
+    final result = <List<MushafToken>?>[];
+    for (var i = 0; i < lines.length; i++) {
+      if (lines[i] < 0) {
+        result.add(null);
+        continue;
+      }
+      final next = lines
+          .skip(i + 1)
+          .firstWhere((l) => l >= 0, orElse: () => _pageEnd);
+      result.add(text.tokens.sublist(lines[i], next));
+    }
+    return result;
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final markerColor = isDark ? AppColors.gold : AppColors.emeraldLight;
-    final textStyle = TextStyle(
+    final muted = theme.colorScheme.onSurfaceVariant;
+    final start = pageStart(page);
+    final runningStyle = TextStyle(
       fontFamily: quranFontFamily,
-      fontSize: widget.fontSize,
-      height: 2.1,
-      color: theme.colorScheme.onSurface,
+      fontSize: 15,
+      height: 1.6,
+      color: muted,
     );
-    final highlight = AppColors.gold.withAlpha(isDark ? 70 : 60);
-    // The first two pages of a mushaf are set in short, centred lines.
-    final align = widget.page <= 2 ? TextAlign.center : TextAlign.justify;
-
-    final children = <Widget>[];
-    for (final segment in pageSegments(widget.page)) {
-      if (segment.startsSurah) {
-        children.add(_SurahHeader(surah: segment.surah));
-        if (segment.surah != 1 && segment.surah != 9) {
-          children.add(
-            Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Text(
-                widget.text.bismillah,
-                textAlign: TextAlign.center,
-                style: textStyle,
-              ),
-            ),
-          );
-        }
-      }
-      children.add(
-        Text.rich(
-          TextSpan(
-            children: [
-              for (var v = segment.firstVerse; v <= segment.lastVerse; v++)
-                _verseSpan(
-                  VerseRef(segment.surah, v),
-                  highlight: highlight,
-                  markerColor: markerColor,
-                ),
-            ],
-          ),
-          textAlign: align,
-          style: textStyle,
-        ),
-      );
-    }
 
     return Directionality(
       textDirection: TextDirection.rtl,
-      child: SingleChildScrollView(
-        key: PageStorageKey('mushaf-page-${widget.page}'),
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 2, 8, 0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            ...children,
-            const SizedBox(height: 16),
-            const IslamicDivider(),
-            const SizedBox(height: 4),
-            Text(
-              arabicNumber(widget.page),
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: quranFontFamily,
-                fontSize: 18,
-                color: theme.colorScheme.onSurfaceVariant,
+            // Running header, as at the top of a printed page.
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'سورة ${surahArabicNames[pageSurah(page) - 1]}',
+                  style: runningStyle,
+                ),
+                Text(
+                  'الجزء ${arabicNumber(juzOf(start.surah, start.verse))}',
+                  style: runningStyle,
+                ),
+              ],
+            ),
+            Expanded(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: AppColors.gold.withAlpha(150),
+                    width: 1,
+                  ),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 2,
+                  ),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) =>
+                        _buildLines(context, constraints),
+                  ),
+                ),
               ),
+            ),
+            Text(
+              arabicNumber(page),
+              textAlign: TextAlign.center,
+              style: runningStyle.copyWith(fontSize: 17),
             ),
           ],
         ),
@@ -366,92 +311,197 @@ class _MushafPageState extends State<_MushafPage> {
     );
   }
 
-  InlineSpan _verseSpan(
-    VerseRef ref, {
-    required Color highlight,
-    required Color markerColor,
-  }) {
-    final selected = widget.selected == ref;
-    final background = selected ? highlight : null;
-    final recognizer = _recognizer(ref);
-    return TextSpan(
-      children: [
-        TextSpan(
-          text: widget.text.verse(ref.surah, ref.verse),
-          recognizer: recognizer,
-          style: TextStyle(backgroundColor: background),
-        ),
-        // Non-breaking space keeps the verse number on the verse's line.
-        // U+06DD followed by digits renders as an ornamented end-of-verse
-        // marker in the Uthmani font.
-        TextSpan(
-          text: ' ۝${arabicNumber(ref.verse)} ',
-          recognizer: recognizer,
-          style: TextStyle(color: markerColor, backgroundColor: background),
-        ),
-      ],
+  Widget _buildLines(BuildContext context, BoxConstraints constraints) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final width = constraints.maxWidth;
+    final lineTokens = _lineTokens;
+
+    // Size the text so the widest line fits the width and all 15 lines fit
+    // the height, then justify every line to the full width like print.
+    const baseSize = 20.0;
+    final base = TextStyle(fontFamily: quranFontFamily, fontSize: baseSize);
+    final natural = [
+      for (final tokens in lineTokens)
+        tokens == null ? 0.0 : _lineWidth(tokens, base),
+    ];
+    final widest = natural.fold(0.0, math.max);
+    final widthFit = widest == 0 ? 28.0 : baseSize * width * 0.99 / widest;
+    final heightFit = constraints.maxHeight / _linesPerPage / _lineHeightFactor;
+    final scrolls = heightFit < _minFittedFontSize;
+    final fontSize = scrolls
+        ? math.min(widthFit, 30.0)
+        : math.min(widthFit, heightFit);
+    // Spread the lines over the whole page, as in print.
+    final lineHeight = scrolls
+        ? fontSize * _lineHeightFactor
+        : math.max(
+            fontSize * _lineHeightFactor,
+            constraints.maxHeight / _linesPerPage,
+          );
+
+    final wordStyle = TextStyle(
+      fontFamily: quranFontFamily,
+      fontSize: fontSize,
+      height: 1,
+      color: theme.colorScheme.onSurface,
     );
+    final markerStyle = wordStyle.copyWith(
+      color: isDark ? AppColors.gold : AppColors.emeraldLight,
+    );
+    final highlight = AppColors.gold.withAlpha(isDark ? 70 : 60);
+
+    Widget token(MushafToken t) {
+      final isSelected = selected == t.ref;
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => onVerseTap(t.ref),
+        child: Container(
+          height: lineHeight,
+          alignment: Alignment.center,
+          padding: EdgeInsets.symmetric(horizontal: fontSize * _gapFactor / 2),
+          decoration: isSelected
+              ? BoxDecoration(
+                  color: highlight,
+                  borderRadius: BorderRadius.circular(4),
+                )
+              : null,
+          child: Text(
+            t.text,
+            textScaler: TextScaler.noScaling,
+            style: t.isVerseEnd ? markerStyle : wordStyle,
+          ),
+        ),
+      );
+    }
+
+    final lines = mushafLines[page - 1];
+    final rows = <Widget>[];
+    for (var i = 0; i < lines.length; i++) {
+      final tokens = lineTokens[i];
+      Widget row;
+      if (lines[i] == bismillahLine) {
+        row = Center(
+          child: Text(
+            text.bismillah,
+            textScaler: TextScaler.noScaling,
+            style: wordStyle,
+          ),
+        );
+      } else if (tokens == null) {
+        row = _SurahHeader(surah: -lines[i], height: lineHeight * 0.92);
+      } else {
+        // Short lines (the opening pages, or where a surah ends) are
+        // centred rather than stretched.
+        final short =
+            page <= 2 || natural[i] * fontSize / baseSize < width * 0.75;
+        // Scaled down rather than clipped if a line ever measures wider
+        // than expected (e.g. a fallback font).
+        row = FittedBox(
+          fit: BoxFit.scaleDown,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minWidth: short ? 0 : width),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                for (final (k, t) in tokens.indexed) ...[
+                  if (short && k > 0) SizedBox(width: fontSize * 0.2),
+                  token(t),
+                ],
+              ],
+            ),
+          ),
+        );
+      }
+      rows.add(SizedBox(height: lineHeight, child: row));
+    }
+
+    final column = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: rows,
+    );
+    if (scrolls) return SingleChildScrollView(child: column);
+    return Center(child: column);
+  }
+
+  /// Width of a line's words set side by side with a small gap, which is
+  /// the tightest the justified row can be.
+  static double _lineWidth(List<MushafToken> tokens, TextStyle style) =>
+      tokens.fold(
+        _gapFactor * style.fontSize! * tokens.length,
+        (sum, t) => sum + _measure(t.text, style),
+      );
+
+  static double _measure(String s, TextStyle style) {
+    final painter = TextPainter(
+      text: TextSpan(text: s, style: style),
+      textDirection: TextDirection.rtl,
+      maxLines: 1,
+    )..layout();
+    final w = painter.width;
+    painter.dispose();
+    return w;
   }
 }
 
 /// Ornamental banner that opens a surah.
 class _SurahHeader extends StatelessWidget {
-  const _SurahHeader({required this.surah});
+  const _SurahHeader({required this.surah, required this.height});
 
   final int surah;
+  final double height;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final info = surahs[surah - 1];
-    final small = theme.textTheme.labelSmall?.copyWith(
+    final small = TextStyle(
+      fontFamily: quranFontFamily,
+      fontSize: height * 0.24,
       color: AppColors.goldLight,
     );
 
-    return Padding(
-      padding: const EdgeInsets.only(top: 8, bottom: 8),
+    return Center(
       child: Container(
-        height: 56,
+        height: height,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(height * 0.2),
           border: Border.all(color: AppColors.gold, width: 1.5),
         ),
-        padding: const EdgeInsets.all(3),
+        padding: const EdgeInsets.all(2),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(9),
+          borderRadius: BorderRadius.circular(height * 0.17),
           child: Stack(
             fit: StackFit.expand,
             children: [
               const IslamicAppBarBackground(),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Row(
                   children: [
-                    SizedBox(
-                      width: 56,
+                    Expanded(
                       child: Text(
                         surahIsMeccan[surah - 1] ? 'مكية' : 'مدنية',
-                        style: small?.copyWith(fontFamily: quranFontFamily),
+                        textScaler: TextScaler.noScaling,
+                        style: small,
+                      ),
+                    ),
+                    Text(
+                      'سورة ${surahArabicNames[surah - 1]}',
+                      textScaler: TextScaler.noScaling,
+                      style: TextStyle(
+                        fontFamily: quranFontFamily,
+                        fontSize: height * 0.42,
+                        height: 1.2,
+                        color: Colors.white,
                       ),
                     ),
                     Expanded(
                       child: Text(
-                        'سورة ${surahArabicNames[surah - 1]}',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontFamily: quranFontFamily,
-                          fontSize: 24,
-                          height: 1.6,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                    SizedBox(
-                      width: 56,
-                      child: Text(
                         'آياتها ${arabicNumber(info.verseCount)}',
                         textAlign: TextAlign.left,
-                        style: small?.copyWith(fontFamily: quranFontFamily),
+                        textScaler: TextScaler.noScaling,
+                        style: small,
                       ),
                     ),
                   ],

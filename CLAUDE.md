@@ -21,11 +21,11 @@ Flutter app for reading the Quran and tracking reading progress (khathm completi
 
 **Key data:** `surahs.dart` has static metadata for all 114 surahs (number, name, verseCount). `absoluteVerse()` and `totalVerses` convert surah:verse to a linear position for progress calculation.
 
-**Quran text:** `assets/quran/quran-uthmani.txt` is the Tanzil Uthmani text (CC BY 3.0, must stay verbatim, including its copyright block), rendered with the bundled Amiri Quran font (`quranFontFamily`). `data/quran.dart` loads it (`QuranText.load()`) and lifts the Bismillah out of each surah's first verse for display. `data/quran_meta.dart` is generated from Tanzil's `quran-data.js` (Arabic names, Meccan/Medinan, the 604 Madani mushaf page starts and 30 juz starts); `pageOf`, `juzOf` and `pageSegments` use it. `ReaderStore` persists the last page read and text size.
+**Quran text:** `assets/quran/quran-uthmani.txt` is the Tanzil Uthmani text (CC BY 3.0, must stay verbatim, including its copyright block), rendered with the bundled Amiri Quran font (`quranFontFamily`). `data/quran.dart` loads it (`QuranText.load()`) and lifts the Bismillah out of each surah's first verse for display. `data/quran_meta.dart` is generated from Tanzil's `quran-data.js` (Arabic names, Meccan/Medinan, the 604 Madani mushaf page starts and 30 juz starts); `pageOf`, `juzOf` and `pageSegments` use it. `data/mushaf_layout.dart` is generated from quran.com's line layout of the 1405 AH Madani mushaf (`mushaf=2`): for each page, its 15 lines (8 on pages 1-2) as indexes into `QuranText.tokens` (words plus a verse-end marker per verse), or a surah banner / Bismillah line. `QuranText`'s word splitting (`_displayWords`) must stay in step with that generator. `ReaderStore` persists the last page read.
 
 **Screens:**
 - `QuranIndexScreen` (first tab) — continue-reading card, Surah/Juz toggle, searchable surah index. Opens `QuranReaderScreen`.
-- `QuranReaderScreen` — `PageView` of the 604 mushaf pages (reversed so pages turn right-to-left). Tapping a verse offers "Mark as read up to here" (saves to `TrackerStore`) and copy.
+- `QuranReaderScreen` — `PageView` of the 604 mushaf pages (reversed so pages turn right-to-left), each laid out line for line as printed: text sized to fit the widest line, lines justified and spread over the page height (scrolls instead when too short, e.g. landscape). Tapping a verse offers "Mark as read up to here" (saves to `TrackerStore`) and copy.
 - `TrackerScreen` — surah CupertinoPicker (~3 visible items) + verse TextField with +/- stepper buttons (long-press repeats). Shows progress in an Islamic-themed gradient header.
 - `ProgressScreen` — daily stats row, bar chart (fl_chart), and swipe-to-delete history list.
 

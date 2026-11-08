@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:khathmtracker/data/mushaf_layout.dart';
 import 'package:khathmtracker/data/quran.dart';
 import 'package:khathmtracker/data/quran_meta.dart';
 import 'package:khathmtracker/main.dart';
@@ -60,6 +61,36 @@ void main() {
     expect(text.verse(114, 6), isNotEmpty);
   });
 
+  test('the line layout lines up with the text, page for page', () {
+    final text = QuranText.parse(
+      File('assets/quran/quran-uthmani.txt').readAsStringSync(),
+    );
+    expect(text.tokens, hasLength(mushafTokenCount));
+    expect(mushafLines, hasLength(mushafPageCount));
+    var previous = -1;
+    for (var page = 1; page <= mushafPageCount; page++) {
+      final lines = mushafLines[page - 1];
+      expect(lines, hasLength(page <= 2 ? 8 : 15));
+      final textLines = lines.where((l) => l >= 0).toList();
+      // Each page opens on its first verse, and lines run in order.
+      expect(text.tokens[textLines.first].ref, pageStart(page));
+      for (final l in textLines) {
+        expect(l, greaterThan(previous));
+        previous = l;
+      }
+      // Banners name the surah that starts right after them.
+      for (final l in lines.where((l) => l < 0 && l != bismillahLine)) {
+        expect(
+          pageSegments(page).map((s) => s.surah).toList()
+            ..addAll(page < mushafPageCount ? [pageStart(page + 1).surah] : []),
+          contains(-l),
+        );
+      }
+    }
+    // A verse-end marker never starts a page.
+    expect(text.tokens.first.text, isNot(startsWith('\u06DD')));
+  });
+
   test('formats Arabic-Indic numbers', () {
     expect(arabicNumber(7), '٧');
     expect(arabicNumber(286), '٢٨٦');
@@ -94,7 +125,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Juz 1 · Page 2'), findsOneWidget);
-    expect(find.text('سورة البقرة'), findsOneWidget);
+    expect(find.text('سورة البقرة'), findsWidgets);
     expect(reader.lastPage, 2);
   });
 }
