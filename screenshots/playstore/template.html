@@ -1,6 +1,6 @@
 <!doctype html>
 <!-- Play Store screenshot template. Rendered by render.sh at 1080x1920;
-     the slide is picked by the URL hash (#1, #2, #3). -->
+     the slide is picked by the URL hash (#1 to #6). -->
 <html>
 <head>
 <meta charset="utf-8">
@@ -33,21 +33,22 @@
     font-size: 40px; line-height: 1.3; font-weight: 500;
     color: rgba(255, 255, 255, 0.85);
   }
+  /* Wide phone running off the bottom edge: only its top 75% is in frame. */
   .phone {
-    position: absolute; left: 50%; bottom: 52px; transform: translateX(-50%);
-    width: 600px; height: 1289px;
-    background: #121614; border-radius: 72px; padding: 18px;
+    position: absolute; left: 50%; top: 530px; transform: translateX(-50%);
+    width: 860px; height: 1856px;
+    background: #121614; border-radius: 100px; padding: 26px;
     box-shadow: 0 40px 90px rgba(0, 0, 0, 0.45), inset 0 0 0 3px #2b302d;
   }
   .screen {
     position: relative; width: 100%; height: 100%;
-    border-radius: 56px; overflow: hidden; background: #f8f5ef;
+    border-radius: 76px; overflow: hidden; background: #f8f5ef;
   }
   .screen img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; }
   /* The emulator draws the punch-hole camera outside the captured frame. */
   .camera {
-    position: absolute; top: 22px; left: 50%; transform: translateX(-50%);
-    width: 30px; height: 30px; border-radius: 50%; background: #050706;
+    position: absolute; top: 32px; left: 50%; transform: translateX(-50%);
+    width: 42px; height: 42px; border-radius: 50%; background: #050706;
   }
 </style>
 </head>
@@ -79,13 +80,19 @@
 </div>
 
 <script>
-  // Captions match the App Store set in screenshots/appstore/.
+  // Slides 4-6 keep the captions of the App Store set in screenshots/appstore/.
   const slides = {
-    1: { img: 'src/1_track.png', title: 'Never lose<br>your place',
+    1: { img: 'src/1_read.png', title: 'The mushaf,<br>as printed',
+         subtitle: 'Every page of the Madani mushaf, laid out line for line.' },
+    2: { img: 'src/2_index.png', title: 'Find any<br>surah fast',
+         subtitle: 'Search by name or number, or browse by juz.' },
+    3: { img: 'src/3_mark.png', title: 'Mark your<br>place as you read',
+         subtitle: 'Hold a verse to save your progress up to it.' },
+    4: { img: 'src/4_track.png', title: 'Never lose<br>your place',
          subtitle: 'Pick the surah and verse where you stopped, in a single swipe.' },
-    2: { img: 'src/2_progress.png', title: 'Watch your<br>khathm grow',
-         subtitle: 'Daily verses, averages and your full reading history.' },
-    3: { img: 'src/3_reminder.png', title: 'A gentle<br>daily reminder',
+    5: { img: 'src/5_progress.png', title: 'Watch your<br>khathm grow',
+         subtitle: 'Streaks, daily verses and your full reading history.' },
+    6: { img: 'src/6_settings.png', title: 'A gentle<br>daily reminder',
          subtitle: 'Get a nudge to recite the Quran at the time that suits you.' },
   };
   const s = slides[location.hash.slice(1)] || slides[1];

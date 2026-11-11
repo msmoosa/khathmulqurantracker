@@ -1,12 +1,12 @@
 #!/bin/sh
 # Renders template.html into 1080x1920 Play Store phone screenshots.
-# Source captures in src/ come from the emulator in demo mode
+# Source captures in src/ (made by prepare.sh) come from the emulator in demo mode
 # (--dart-define=DEMO=true) with the system UI demo status bar enabled.
 set -e
 cd "$(dirname "$0")"
 CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 mkdir -p phone
-for slide in 1:1_track 2:2_progress 3:3_reminder; do
+for slide in 1:1_read 2:2_index 3:3_mark 4:4_track 5:5_progress 6:6_settings; do
   n=${slide%%:*}; name=${slide#*:}
   "$CHROME" --headless --disable-gpu --hide-scrollbars --force-device-scale-factor=1 \
     --window-size=1080,1920 --allow-file-access-from-files \
