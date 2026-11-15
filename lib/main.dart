@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'data/quran.dart';
 import 'demo/demo_data.dart';
 import 'screens/progress_screen.dart';
 import 'screens/quran_index_screen.dart';
+import 'screens/quran_reader_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/tracker_screen.dart';
 import 'state/appearance_store.dart';
@@ -112,6 +114,31 @@ class _HomeShellState extends State<HomeShell> {
         !widget.reminders.hasPrompted) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _askForReminder());
     }
+    if (kDemoPage > 0 || kDemoVerse.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _openDemoReader());
+    }
+  }
+
+  /// Opens the reader for screenshots, as set by `DEMO_PAGE` or `DEMO_VERSE`.
+  void _openDemoReader() {
+    final parts = kDemoVerse.split(':');
+    final verse = parts.length == 2
+        ? VerseRef(int.parse(parts[0]), int.parse(parts[1]))
+        : null;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => QuranReaderScreen(
+          initialPage: verse == null
+              ? kDemoPage
+              : pageOf(verse.surah, verse.verse),
+          highlight: verse,
+          openVerseMenu: verse != null,
+          reader: widget.reader,
+          tracker: widget.store,
+          appearance: widget.appearance,
+        ),
+      ),
+    );
   }
 
   /// Explains the daily reminder before showing the system permission prompt.
@@ -168,8 +195,16 @@ class _HomeShellState extends State<HomeShell> {
         child: IndexedStack(
           index: _tab,
           children: [
-            QuranIndexScreen(reader: widget.reader, tracker: widget.store),
-            TrackerScreen(store: widget.store, reader: widget.reader),
+            QuranIndexScreen(
+              reader: widget.reader,
+              tracker: widget.store,
+              appearance: widget.appearance,
+            ),
+            TrackerScreen(
+              store: widget.store,
+              reader: widget.reader,
+              appearance: widget.appearance,
+            ),
             ProgressScreen(store: widget.store),
             SettingsScreen(
               reminders: widget.reminders,

@@ -8,6 +8,7 @@ import '../data/mushaf_layout.dart';
 import '../data/quran.dart';
 import '../data/qpc_words.dart';
 import '../data/surahs.dart';
+import '../state/appearance_store.dart';
 import '../state/mushaf_fonts.dart';
 import '../state/reader_store.dart';
 import '../state/tracker_store.dart';
@@ -23,16 +24,23 @@ class QuranReaderScreen extends StatefulWidget {
     super.key,
     required this.initialPage,
     this.highlight,
+    this.openVerseMenu = false,
     required this.reader,
     required this.tracker,
+    required this.appearance,
   });
 
   final int initialPage;
 
   /// A verse on [initialPage] to highlight until the page is turned.
   final VerseRef? highlight;
+
+  /// Whether to open [highlight]'s verse menu straight away, as if it were
+  /// held. Used for store screenshots.
+  final bool openVerseMenu;
   final ReaderStore reader;
   final TrackerStore tracker;
+  final AppearanceStore appearance;
 
   @override
   State<QuranReaderScreen> createState() => _QuranReaderScreenState();
@@ -60,6 +68,12 @@ class _QuranReaderScreenState extends State<QuranReaderScreen> {
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => widget.reader.setLastPage(_page),
     );
+    final held = widget.highlight;
+    if (widget.openVerseMenu && held != null) {
+      _data.then((data) {
+        if (mounted) _onVerseTap(data[0] as QuranText, held);
+      });
+    }
   }
 
   @override
@@ -219,15 +233,15 @@ class _QuranReaderScreenState extends State<QuranReaderScreen> {
                     ),
                   ),
                   actions: [
-                    Padding(
-                      padding: const EdgeInsets.only(right: 12),
-                      child: Center(
-                        child: Text(
-                          'Hold a verse for options',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: AppColors.goldLight,
-                          ),
-                        ),
+                    IconButton(
+                      tooltip: isDark ? 'Light theme' : 'Dark theme',
+                      icon: Icon(
+                        isDark
+                            ? Icons.light_mode_outlined
+                            : Icons.dark_mode_outlined,
+                      ),
+                      onPressed: () => widget.appearance.setThemeMode(
+                        isDark ? ThemeMode.light : ThemeMode.dark,
                       ),
                     ),
                   ],

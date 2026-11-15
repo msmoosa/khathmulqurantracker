@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../data/quran.dart';
 import '../data/quran_meta.dart';
 import '../data/surahs.dart';
+import '../state/appearance_store.dart';
 import '../state/reader_store.dart';
 import '../state/tracker_store.dart';
 import '../theme.dart';
@@ -19,10 +20,12 @@ class QuranIndexScreen extends StatefulWidget {
     super.key,
     required this.reader,
     required this.tracker,
+    required this.appearance,
   });
 
   final ReaderStore reader;
   final TrackerStore tracker;
+  final AppearanceStore appearance;
 
   @override
   State<QuranIndexScreen> createState() => _QuranIndexScreenState();
@@ -39,14 +42,16 @@ class _QuranIndexScreenState extends State<QuranIndexScreen> {
     super.dispose();
   }
 
-  void _open(int page) {
+  void _open(int page, {VerseRef? highlight}) {
     FocusScope.of(context).unfocus();
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => QuranReaderScreen(
           initialPage: page,
+          highlight: highlight,
           reader: widget.reader,
           tracker: widget.tracker,
+          appearance: widget.appearance,
         ),
       ),
     );
@@ -78,13 +83,25 @@ class _QuranIndexScreenState extends State<QuranIndexScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               ListenableBuilder(
-                listenable: widget.reader,
+                listenable: Listenable.merge([widget.reader, widget.tracker]),
                 builder: (context, _) {
-                  final page = widget.reader.lastPage;
+                  // Picks up where the tracker is up to, marking the verse;
+                  // before anything is tracked, the last page read.
+                  final last = widget.tracker.lastEntry;
+                  final verse = last == null
+                      ? null
+                      : VerseRef(last.surah, last.verse);
+                  final page = verse == null
+                      ? widget.reader.lastPage
+                      : pageOf(verse.surah, verse.verse);
                   if (page == null) return const SizedBox.shrink();
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 12),
-                    child: _ContinueCard(page: page, onTap: () => _open(page)),
+                    child: _ContinueCard(
+                      page: page,
+                      verse: verse,
+                      onTap: () => _open(page, highlight: verse),
+                    ),
                   );
                 },
               ),
@@ -148,16 +165,18 @@ class _QuranIndexScreenState extends State<QuranIndexScreen> {
 }
 
 class _ContinueCard extends StatelessWidget {
-  const _ContinueCard({required this.page, required this.onTap});
+  const _ContinueCard({required this.page, this.verse, required this.onTap});
 
   final int page;
+  final VerseRef? verse;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final start = pageStart(page);
-    final surah = surahs[pageSurah(page) - 1];
+    final verse = this.verse;
+    final surah = surahs[(verse?.surah ?? pageSurah(page)) - 1];
 
     return Material(
       borderRadius: BorderRadius.circular(16),
@@ -186,8 +205,11 @@ class _ContinueCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '${surah.name} · Page $page · '
-                          'Juz ${juzOf(start.surah, start.verse)}',
+                          verse == null
+                              ? '${surah.name} · Page $page · '
+                                    'Juz ${juzOf(start.surah, start.verse)}'
+                              : '${surah.name} ${verse.surah}:${verse.verse}'
+                                    ' · Page $page',
                           style: theme.textTheme.titleMedium?.copyWith(
                             color: Colors.white,
                             fontWeight: FontWeight.w600,

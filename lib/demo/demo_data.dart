@@ -11,6 +11,14 @@ const kDemoMode = bool.fromEnvironment('DEMO');
 /// `--dart-define=DEMO_TAB=1`.
 const kDemoTab = int.fromEnvironment('DEMO_TAB');
 
+/// Mushaf page to open the reader at on launch. Pass
+/// `--dart-define=DEMO_PAGE=604`.
+const kDemoPage = int.fromEnvironment('DEMO_PAGE');
+
+/// Verse to hold on launch, as `surah:verse`: opens the reader at its page
+/// with its verse menu showing. Pass `--dart-define=DEMO_VERSE=19:6`.
+const kDemoVerse = String.fromEnvironment('DEMO_VERSE');
+
 /// Verses read on each of the last 14 days (oldest first, today last).
 /// A zero is a missed day so the chart looks realistic.
 const _dailyVerses = [

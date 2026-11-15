@@ -7,6 +7,7 @@ import '../data/quran.dart';
 import '../data/surahs.dart';
 import '../models/reading_entry.dart';
 import '../models/streak.dart';
+import '../state/appearance_store.dart';
 import '../state/reader_store.dart';
 import '../state/tracker_store.dart';
 import '../theme.dart';
@@ -14,10 +15,16 @@ import '../widgets/top_toast.dart';
 import 'quran_reader_screen.dart';
 
 class TrackerScreen extends StatefulWidget {
-  const TrackerScreen({super.key, required this.store, required this.reader});
+  const TrackerScreen({
+    super.key,
+    required this.store,
+    required this.reader,
+    required this.appearance,
+  });
 
   final TrackerStore store;
   final ReaderStore reader;
+  final AppearanceStore appearance;
 
   @override
   State<TrackerScreen> createState() => _TrackerScreenState();
@@ -130,6 +137,7 @@ class _TrackerScreenState extends State<TrackerScreen> {
           highlight: VerseRef(_surah, _verse),
           reader: widget.reader,
           tracker: widget.store,
+          appearance: widget.appearance,
         ),
       ),
     );
@@ -276,13 +284,19 @@ class _TrackerScreenState extends State<TrackerScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: TextButton.icon(
-              onPressed: _jumpToVerse,
-              icon: const Icon(Icons.auto_stories_rounded, size: 20),
-              label: Text('Jump to $_surah:$_verse in the Quran'),
+          const SizedBox(height: 12),
+          // Gold rather than emerald so it stands apart from Save. The
+          // theme's filled style pins an emerald background, so set both.
+          FilledButton.icon(
+            onPressed: _jumpToVerse,
+            style: FilledButton.styleFrom(
+              backgroundColor: theme.colorScheme.secondaryContainer,
+              foregroundColor: theme.colorScheme.onSecondaryContainer,
+            ),
+            icon: const Icon(Icons.auto_stories_rounded, size: 22),
+            label: Text(
+              'Read ${_current.name} $_surah:$_verse',
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
