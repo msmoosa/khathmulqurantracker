@@ -33,4 +33,4 @@ shoot "" --dart-define=DEMO_PAGE=50 # leaves "Continue reading" on page 50
 shoot index --dart-define=DEMO_TAB=0
 shoot track --dart-define=DEMO_TAB=1
 shoot progress --dart-define=DEMO_TAB=2
-shoot settings --dart-define=DEMO_TAB=3
+shoot settings --dart-define=DEMO_TAB=4

@@ -10,6 +10,7 @@ import '../state/reader_store.dart';
 import '../state/tracker_store.dart';
 import '../theme.dart';
 import '../widgets/islamic_patterns.dart';
+import '../widgets/no_bold_text.dart';
 import 'quran_reader_screen.dart';
 
 enum _IndexMode { surah, juz }
@@ -343,14 +344,16 @@ class _IndexTile extends StatelessWidget {
           color: theme.colorScheme.onSurfaceVariant,
         ),
       ),
-      trailing: Text(
-        arabic,
-        textDirection: TextDirection.rtl,
-        style: TextStyle(
-          fontFamily: quranFontFamily,
-          fontSize: 22,
-          height: 1.4,
-          color: theme.colorScheme.primary,
+      trailing: NoBoldText(
+        child: Text(
+          arabic,
+          textDirection: TextDirection.rtl,
+          style: TextStyle(
+            fontFamily: quranFontFamily,
+            fontSize: 22,
+            height: 1.4,
+            color: theme.colorScheme.primary,
+          ),
         ),
       ),
       onTap: onTap,

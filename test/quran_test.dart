@@ -7,6 +7,7 @@ import 'package:khathmtracker/data/qpc_words.dart';
 import 'package:khathmtracker/data/quran.dart';
 import 'package:khathmtracker/data/quran_meta.dart';
 import 'package:khathmtracker/main.dart';
+import 'package:khathmtracker/screens/quran_reader_screen.dart';
 import 'package:khathmtracker/state/mushaf_fonts.dart';
 import 'package:khathmtracker/state/appearance_store.dart';
 import 'package:khathmtracker/state/reader_store.dart';
@@ -136,6 +137,12 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     final reader = ReaderStore(prefs);
     final tracker = TrackerStore(prefs);
+    // Loaded for real before the app starts: the Inspire tab asks for the
+    // text as soon as it is built, and a load begun in the test's fake
+    // async zone would never finish.
+    await tester.runAsync(
+      () => Future.wait([QuranText.load(), QpcWords.load()]),
+    );
     await tester.pumpWidget(
       KhathmTrackerApp(
         store: tracker,
@@ -150,9 +157,6 @@ void main() {
     await tester.pump();
     expect(find.text('Al-Fatihah'), findsNothing);
 
-    await tester.runAsync(
-      () => Future.wait([QuranText.load(), QpcWords.load()]),
-    );
     await tester.tap(find.text('Al-Baqarah'));
     await tester.pumpAndSettle();
 
@@ -168,5 +172,42 @@ void main() {
     await tester.tap(find.text('Mark as read up to here'));
     await tester.pumpAndSettle();
     expect(tracker.lastEntry?.verse, 2);
+  });
+
+  testWidgets('scrolls a large-text page to the highlighted verse', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1179, 2556);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    SharedPreferences.setMockInitialValues({
+      'reader_text_size': ReaderStore.maxTextSize,
+    });
+    final prefs = await SharedPreferences.getInstance();
+    await tester.runAsync(
+      () => Future.wait([QuranText.load(), QpcWords.load()]),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: QuranReaderScreen(
+          // The last verse on its page, below the fold at this size.
+          initialPage: 443,
+          highlight: const VerseRef(36, 54),
+          reader: ReaderStore(prefs),
+          tracker: TrackerStore(prefs),
+          appearance: AppearanceStore(prefs),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final word = find.byWidgetPredicate(
+      (w) => w is GestureDetector && w.key is GlobalKey,
+    );
+    expect(word, findsOneWidget);
+    final screen = tester.view.physicalSize / tester.view.devicePixelRatio;
+    final rect = tester.getRect(word);
+    expect(rect.top, greaterThanOrEqualTo(0));
+    expect(rect.bottom, lessThanOrEqualTo(screen.height));
   });
 }

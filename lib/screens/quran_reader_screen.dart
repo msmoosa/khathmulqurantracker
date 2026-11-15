@@ -14,6 +14,7 @@ import '../state/reader_store.dart';
 import '../state/tracker_store.dart';
 import '../theme.dart';
 import '../widgets/islamic_patterns.dart';
+import '../widgets/no_bold_text.dart';
 
 /// Reads the Quran page by page as the classic Madani mushaf (1405 AH
 /// print of the King Fahd Complex): the same 604 pages, each with the same
@@ -97,6 +98,64 @@ class _QuranReaderScreenState extends State<QuranReaderScreen> {
       _showBar = false;
     });
     widget.reader.setLastPage(_page);
+  }
+
+  /// A slider for the text size, applied to the page live behind it.
+  void _showTextSize() {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: ListenableBuilder(
+          listenable: widget.reader,
+          builder: (context, _) {
+            final theme = Theme.of(context);
+            final size = widget.reader.textSize;
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Text size',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      const Icon(Icons.text_decrease),
+                      Expanded(
+                        child: Slider(
+                          value: size.toDouble(),
+                          max: ReaderStore.maxTextSize.toDouble(),
+                          divisions: ReaderStore.maxTextSize,
+                          onChanged: (v) =>
+                              widget.reader.setTextSize(v.round()),
+                        ),
+                      ),
+                      const Icon(Icons.text_increase),
+                    ],
+                  ),
+                  Text(
+                    size == 0
+                        ? 'As printed: each page line for line, in the '
+                              "mushaf's own script."
+                        : 'Larger text: the verses wrap to fit the screen, '
+                              'in a simpler script.',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
   }
 
   Future<void> _onVerseTap(QuranText text, VerseRef ref) async {
@@ -183,19 +242,23 @@ class _QuranReaderScreenState extends State<QuranReaderScreen> {
           behavior: ScrollConfiguration.of(
             context,
           ).copyWith(dragDevices: {...PointerDeviceKind.values}),
-          child: PageView.builder(
-            controller: _pages,
-            // A mushaf opens from the right, so the next page is on the left.
-            reverse: true,
-            itemCount: mushafPageCount,
-            onPageChanged: _onPageChanged,
-            itemBuilder: (context, i) => _ReaderPage(
-              page: i + 1,
-              text: text,
-              words: words,
-              fonts: _fonts,
-              selected: _selected,
-              onVerseLongPress: (ref) => _onVerseTap(text, ref),
+          child: ListenableBuilder(
+            listenable: widget.reader,
+            builder: (context, _) => PageView.builder(
+              controller: _pages,
+              // A mushaf opens from the right, so the next page is on the left.
+              reverse: true,
+              itemCount: mushafPageCount,
+              onPageChanged: _onPageChanged,
+              itemBuilder: (context, i) => _ReaderPage(
+                page: i + 1,
+                text: text,
+                words: words,
+                fonts: _fonts,
+                textSize: widget.reader.textSize,
+                selected: _selected,
+                onVerseLongPress: (ref) => _onVerseTap(text, ref),
+              ),
             ),
           ),
         );
@@ -234,6 +297,11 @@ class _QuranReaderScreenState extends State<QuranReaderScreen> {
                   ),
                   actions: [
                     IconButton(
+                      tooltip: 'Text size',
+                      icon: const Icon(Icons.format_size),
+                      onPressed: _showTextSize,
+                    ),
+                    IconButton(
                       tooltip: isDark ? 'Light theme' : 'Dark theme',
                       icon: Icon(
                         isDark
@@ -271,6 +339,10 @@ const _minFittedFontSize = 15.0;
 /// Line height of the 8-line opening pages, as a multiple of the font size.
 const _openingLineHeightFactor = 2.3;
 
+/// Line height of reflowed text, as a multiple of the font size: looser
+/// than print, so the marks of one line keep clear of the next.
+const _reflowLineHeightFactor = 2.5;
+
 /// Smallest gap between words, as a multiple of the font size.
 const _gapFactor = 0.18;
 
@@ -307,6 +379,7 @@ class _ReaderPage extends StatelessWidget {
     required this.text,
     required this.words,
     required this.fonts,
+    required this.textSize,
     required this.selected,
     required this.onVerseLongPress,
   });
@@ -315,6 +388,10 @@ class _ReaderPage extends StatelessWidget {
   final QuranText text;
   final QpcWords words;
   final MushafFonts fonts;
+
+  /// [ReaderStore.textSize]: above 0 the page is reflowed, which needs
+  /// only the bundled font.
+  final int textSize;
   final VerseRef? selected;
   final ValueChanged<VerseRef> onVerseLongPress;
 
@@ -356,6 +433,15 @@ class _ReaderPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (textSize > 0) {
+      return _BookPage(
+        page: page,
+        lines: _lines(calligraphy: false),
+        textSize: textSize,
+        selected: selected,
+        onVerseLongPress: onVerseLongPress,
+      );
+    }
     return FutureBuilder<bool>(
       future: fonts.ensurePage(page),
       initialData: fonts.isPageReady(page) ? true : null,
@@ -387,6 +473,7 @@ class _BookPage extends StatelessWidget {
     required this.lines,
     this.fontFamily = quranFontFamily,
     this.fallbackNotice = false,
+    this.textSize = 0,
     this.selected,
     this.onVerseLongPress,
   });
@@ -399,6 +486,9 @@ class _BookPage extends StatelessWidget {
 
   /// Whether to say that the page is shown in the fallback script.
   final bool fallbackNotice;
+
+  /// 0 to lay the page out as printed, or a larger size to reflow it.
+  final int textSize;
   final VerseRef? selected;
   final ValueChanged<VerseRef>? onVerseLongPress;
 
@@ -433,11 +523,14 @@ class _BookPage extends StatelessWidget {
                       child: CircularProgressIndicator(strokeWidth: 2.5),
                     ),
                   )
-                : Directionality(
-                    textDirection: TextDirection.rtl,
-                    child: LayoutBuilder(
-                      builder: (context, constraints) =>
-                          _buildLines(context, constraints, lines!),
+                : NoBoldText(
+                    child: Directionality(
+                      textDirection: TextDirection.rtl,
+                      child: LayoutBuilder(
+                        builder: (context, constraints) => textSize > 0
+                            ? _buildReflow(context, constraints, lines!)
+                            : _buildLines(context, constraints, lines!),
+                      ),
                     ),
                   ),
           ),
@@ -527,32 +620,9 @@ class _BookPage extends StatelessWidget {
     );
     final highlight = AppColors.gold.withAlpha(isDark ? 80 : 70);
 
-    Widget word(_Word w) {
-      final isSelected = selected == w.ref;
-      return GestureDetector(
-        // Opaque so the whole cell, not just the glyphs, can be held.
-        behavior: HitTestBehavior.opaque,
-        onLongPress: () => onVerseLongPress?.call(w.ref),
-        child: Container(
-          height: lineHeight,
-          alignment: Alignment.center,
-          padding: EdgeInsets.symmetric(horizontal: fontSize * _gapFactor / 2),
-          decoration: isSelected
-              ? BoxDecoration(
-                  color: highlight,
-                  borderRadius: BorderRadius.circular(4),
-                )
-              : null,
-          child: Text(
-            w.text,
-            textScaler: TextScaler.noScaling,
-            softWrap: false,
-            overflow: TextOverflow.visible,
-            style: wordStyle,
-          ),
-        ),
-      );
-    }
+    final reveal = _Reveal(selected);
+    Widget word(_Word w) =>
+        _wordCell(w, wordStyle, lineHeight, highlight, key: reveal.keyFor(w));
 
     final rows = <Widget>[];
     for (final (i, line) in lines.indexed) {
@@ -606,10 +676,173 @@ class _BookPage extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: rows,
     );
-    if (scrolls) return SingleChildScrollView(child: column);
+    if (scrolls) {
+      return _RevealSelected(
+        reveal: reveal,
+        child: SingleChildScrollView(child: column),
+      );
+    }
     return Align(
       alignment: opening ? Alignment.center : Alignment.topCenter,
       child: column,
+    );
+  }
+
+  /// A word that can be held to open its verse's menu, highlighted while
+  /// its verse is selected.
+  Widget _wordCell(
+    _Word w,
+    TextStyle style,
+    double height,
+    Color highlight, {
+    Key? key,
+  }) {
+    return GestureDetector(
+      key: key,
+      // Opaque so the whole cell, not just the glyphs, can be held.
+      behavior: HitTestBehavior.opaque,
+      onLongPress: () => onVerseLongPress?.call(w.ref),
+      child: Container(
+        height: height,
+        padding: EdgeInsets.symmetric(
+          horizontal: style.fontSize! * _gapFactor / 2,
+        ),
+        decoration: selected == w.ref
+            ? BoxDecoration(
+                color: highlight,
+                borderRadius: BorderRadius.circular(4),
+              )
+            : null,
+        // Only as wide as the word, so a reflowed line can hold several;
+        // in a printed line the cell is given its width.
+        child: Center(
+          widthFactor: 1,
+          child: Text(
+            w.text,
+            textScaler: TextScaler.noScaling,
+            softWrap: false,
+            overflow: TextOverflow.visible,
+            style: style,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// The page's verses set larger than print, wrapping to the width and
+  /// scrolling, with its surah frames and Bismillah kept in place.
+  Widget _buildReflow(
+    BuildContext context,
+    BoxConstraints constraints,
+    List<_Line> lines,
+  ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final ink = isDark ? AppColors.paper : AppColors.ink;
+    final fontSize = 22.0 + 5 * textSize;
+    final lineHeight = fontSize * _reflowLineHeightFactor;
+    final wordStyle = TextStyle(
+      fontFamily: quranFontFamily,
+      fontSize: fontSize,
+      height: 1,
+      color: ink,
+    );
+    final highlight = AppColors.gold.withAlpha(isDark ? 80 : 70);
+
+    final blocks = <Widget>[];
+    var run = <_Word>[];
+    // Breaks a run of words into lines that fill the width, and justifies
+    // each by spreading its words to both edges, as in print. The run's
+    // last line is set from the right instead.
+    final width = constraints.maxWidth;
+    final reveal = _Reveal(selected);
+    void endRun() {
+      if (run.isEmpty) return;
+      final lines = <List<_Word>>[[]];
+      var used = 0.0;
+      for (final w in run) {
+        final size = _measure(w.text, wordStyle) + fontSize * _gapFactor;
+        if (lines.last.isNotEmpty && used + size > width) {
+          lines.add([]);
+          used = 0;
+        }
+        lines.last.add(w);
+        used += size;
+      }
+      for (final (i, line) in lines.indexed) {
+        final cells = [
+          for (final w in line)
+            _wordCell(
+              w,
+              wordStyle,
+              lineHeight,
+              highlight,
+              key: reveal.keyFor(w),
+            ),
+        ];
+        blocks.add(
+          SizedBox(
+            height: lineHeight,
+            // A lone word too wide for the screen is scaled down to fit.
+            child: line.length == 1
+                ? FittedBox(fit: BoxFit.scaleDown, child: cells.single)
+                : Row(
+                    mainAxisAlignment: i == lines.length - 1
+                        ? MainAxisAlignment.start
+                        : MainAxisAlignment.spaceBetween,
+                    children: cells,
+                  ),
+          ),
+        );
+      }
+      run = [];
+    }
+
+    // The banner and Bismillah stay the size they are in print.
+    const bannerHeight = 52.0;
+    for (final line in lines) {
+      switch (line) {
+        case _WordsLine(:final words):
+          run.addAll(words);
+        case _HeaderLine(:final surah):
+          endRun();
+          blocks.add(
+            SizedBox(
+              height: bannerHeight,
+              child: _SurahHeader(
+                surah: surah,
+                height: bannerHeight * 0.95,
+                color: ink,
+              ),
+            ),
+          );
+        case _BismillahLine():
+          endRun();
+          blocks.add(
+            SizedBox(
+              height: bannerHeight,
+              child: _glyphToWidth(
+                '\uFDFD',
+                MushafFonts.bismillahFamily,
+                math.min(constraints.maxWidth * 0.82, bannerHeight * 9),
+                ink,
+              ),
+            ),
+          );
+      }
+    }
+    endRun();
+
+    return _RevealSelected(
+      reveal: reveal,
+      child: SingleChildScrollView(
+        // Room for the marks above the first line and below the last, which
+        // reach past their line boxes and would be clipped at the edges.
+        padding: EdgeInsets.symmetric(vertical: fontSize * 0.6),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: blocks,
+        ),
+      ),
     );
   }
 
@@ -657,6 +890,72 @@ class _BookPage extends StatelessWidget {
     painter.dispose();
     return w;
   }
+}
+
+/// Marks the first word of the selected verse on a page being built, so
+/// [_RevealSelected] can scroll to it.
+class _Reveal {
+  _Reveal(this.selected);
+
+  final VerseRef? selected;
+  final target = GlobalKey();
+  var _marked = false;
+
+  /// The key for [w] if it is the first word of the selected verse.
+  Key? keyFor(_Word w) {
+    if (_marked || w.ref != selected) return null;
+    _marked = true;
+    return target;
+  }
+}
+
+/// Scrolls a page that is taller than the screen to the selected verse
+/// when it opens, or when another verse is selected, unless the verse is
+/// already in view.
+class _RevealSelected extends StatefulWidget {
+  const _RevealSelected({required this.reveal, required this.child});
+
+  final _Reveal reveal;
+  final Widget child;
+
+  @override
+  State<_RevealSelected> createState() => _RevealSelectedState();
+}
+
+class _RevealSelectedState extends State<_RevealSelected> {
+  @override
+  void initState() {
+    super.initState();
+    _reveal();
+  }
+
+  @override
+  void didUpdateWidget(_RevealSelected old) {
+    super.didUpdateWidget(old);
+    if (old.reveal.selected != widget.reveal.selected) _reveal();
+  }
+
+  void _reveal() {
+    if (widget.reveal.selected == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final word = widget.reveal.target.currentContext;
+      if (!mounted || word == null) return;
+      final viewport = Scrollable.maybeOf(word)?.context.findRenderObject();
+      if (viewport is! RenderBox) return;
+      final box = word.findRenderObject()! as RenderBox;
+      final top = box.localToGlobal(Offset.zero, ancestor: viewport).dy;
+      if (top >= 0 && top + box.size.height <= viewport.size.height) return;
+      Scrollable.ensureVisible(
+        word,
+        alignment: 0.3,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 /// The engraved frame that opens a surah: a double-ruled panel with

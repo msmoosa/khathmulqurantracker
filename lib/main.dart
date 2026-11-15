@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'data/quran.dart';
 import 'demo/demo_data.dart';
+import 'screens/inspire_screen.dart';
 import 'screens/progress_screen.dart';
 import 'screens/quran_index_screen.dart';
 import 'screens/quran_reader_screen.dart';
@@ -101,6 +102,7 @@ class _HomeShellState extends State<HomeShell> {
     'Quran',
     'Khathmul Quran Tracker',
     'Progress',
+    'Inspiration',
     'Settings',
   ];
 
@@ -206,6 +208,11 @@ class _HomeShellState extends State<HomeShell> {
               appearance: widget.appearance,
             ),
             ProgressScreen(store: widget.store),
+            InspireScreen(
+              reader: widget.reader,
+              tracker: widget.store,
+              appearance: widget.appearance,
+            ),
             SettingsScreen(
               reminders: widget.reminders,
               appearance: widget.appearance,
@@ -240,6 +247,11 @@ class _HomeShellState extends State<HomeShell> {
               icon: Icon(Icons.bar_chart_outlined),
               selectedIcon: Icon(Icons.bar_chart),
               label: 'Progress',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.format_quote_outlined),
+              selectedIcon: Icon(Icons.format_quote),
+              label: 'Inspire',
             ),
             NavigationDestination(
               icon: Icon(Icons.settings_outlined),
