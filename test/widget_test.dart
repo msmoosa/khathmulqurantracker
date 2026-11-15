@@ -76,6 +76,11 @@ void main() {
 
     await tester.tap(find.text('Progress'));
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.textContaining('· starting point'),
+      200,
+      scrollable: find.byType(Scrollable).last,
+    );
     expect(find.textContaining('· starting point'), findsOneWidget);
   });
 

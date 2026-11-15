@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:home_widget/home_widget.dart';
 
+import '../data/quran.dart';
 import '../data/surahs.dart';
 import '../models/reading_entry.dart';
 import '../models/streak.dart';

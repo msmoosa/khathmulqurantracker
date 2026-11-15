@@ -77,6 +77,23 @@ int _lastStartAtOrBefore(List<int> flat, VerseRef ref) {
 int pageOf(int surah, int verse) =>
     _lastStartAtOrBefore(pageStarts, VerseRef(surah, verse));
 
+/// Mushaf pages read by the end of [surah]:[verse]: the pages before its
+/// page, plus the share of its own page's verses read so far. Pages are a
+/// steadier measure of a khathm than verses, which vary a lot in length.
+double pagesRead(int surah, int verse) {
+  final page = pageOf(surah, verse);
+  final first = pageStart(page).absolute;
+  final next = page < mushafPageCount
+      ? pageStart(page + 1).absolute
+      : totalVerses + 1;
+  return page - 1 + (absoluteVerse(surah, verse) - first + 1) / (next - first);
+}
+
+/// How far through the khathm reading up to [surah]:[verse] is, as a whole
+/// percentage of the mushaf's pages: 100 only at the last verse.
+int khathmPercent(int surah, int verse) =>
+    (pagesRead(surah, verse) * 100 / mushafPageCount).floor();
+
 /// Juz (1-30) that [surah]:[verse] is in.
 int juzOf(int surah, int verse) =>
     _lastStartAtOrBefore(juzStarts, VerseRef(surah, verse));

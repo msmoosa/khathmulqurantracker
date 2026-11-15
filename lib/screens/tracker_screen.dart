@@ -317,7 +317,6 @@ class _KhathmProgress extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final percent = khathmPercent(surah, verse);
-    final read = absoluteVerse(surah, verse);
 
     return Card(
       margin: EdgeInsets.zero,
@@ -352,7 +351,7 @@ class _KhathmProgress extends StatelessWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(4),
               child: LinearProgressIndicator(
-                value: read / totalVerses,
+                value: pagesRead(surah, verse) / mushafPageCount,
                 minHeight: 8,
                 backgroundColor: theme.colorScheme.primary.withAlpha(30),
                 valueColor: const AlwaysStoppedAnimation(AppColors.gold),
@@ -361,7 +360,7 @@ class _KhathmProgress extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               '${surahs[surah - 1].name} $surah:$verse · '
-              '${_thousands(read)} of ${_thousands(totalVerses)} verses',
+              'Page ${pageOf(surah, verse)} of $mushafPageCount',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -371,11 +370,6 @@ class _KhathmProgress extends StatelessWidget {
       ),
     );
   }
-
-  static String _thousands(int n) => n.toString().replaceAllMapped(
-    RegExp(r'(\d)(?=(\d{3})+$)'),
-    (m) => '${m[1]},',
-  );
 }
 
 class _PickerCard extends StatelessWidget {

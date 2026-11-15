@@ -30,6 +30,16 @@ void main() {
     expect(counts.last.day, DateTime(2026, 10, 4));
   });
 
+  test('counts the mushaf pages read each day', () {
+    final counts = dailyCounts([
+      e(1, 7, DateTime(2026, 10, 1)), // the end of page 1
+      e(2, 5, DateTime(2026, 10, 2)), // the end of page 2
+      e(114, 6, DateTime(2026, 10, 3)), // the end of the Quran
+      e(1, 7, DateTime(2026, 10, 4)), // a new khathm, through page 1
+    ]);
+    expect(counts.map((c) => c.pages), [1, 602, 1]);
+  });
+
   test('wrapping from the end to the start counts as a new khathm', () {
     final counts = dailyCounts([
       e(114, 1, DateTime(2026, 10, 1)),

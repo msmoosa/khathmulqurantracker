@@ -1,3 +1,4 @@
+import '../data/quran.dart';
 import 'reading_entry.dart';
 
 /// The time windows the Progress screen can show.
@@ -19,15 +20,18 @@ enum ProgressRange {
 /// How many days each bar in the chart covers.
 enum BucketSize { day, week, month }
 
-/// One bar in the chart: the verses read over [days] days from [start].
+/// One bar in the chart: the verses read over [days] days from [start],
+/// and the mushaf pages they cover.
 class ChartBucket {
-  const ChartBucket(this.start, this.days, this.verses);
+  const ChartBucket(this.start, this.days, this.verses, {this.pages = 0});
 
   final DateTime start;
   final int days;
   final int verses;
+  final double pages;
 
   double get perDay => verses / days;
+  double get pagesPerDay => pages / days;
 }
 
 /// Verses read within a [ProgressRange], grouped into chart bars.
@@ -59,7 +63,7 @@ RangeSummary summarizeRange(
   DateTime now,
 ) {
   if (daily.isEmpty) return RangeSummary.empty;
-  final counts = {for (final d in daily) d.day: d.verses};
+  final counts = {for (final d in daily) d.day: d};
   final today = DateTime(now.year, now.month, now.day);
   final end = daily.last.day.isAfter(today) ? daily.last.day : today;
   var start = daily.first.day;
@@ -76,7 +80,7 @@ RangeSummary summarizeRange(
     !d.isAfter(end);
     d = DateTime(d.year, d.month, d.day + 1)
   ) {
-    days.add(DailyCount(d, counts[d] ?? 0));
+    days.add(counts[d] ?? DailyCount(d, 0));
   }
 
   final size = days.length <= 31
@@ -100,30 +104,38 @@ RangeSummary summarizeRange(
     if (k != key) {
       key = k;
       // A partial first period starts at the range start, not before it.
-      buckets.add(ChartBucket(d.day, 1, d.verses));
+      buckets.add(ChartBucket(d.day, 1, d.verses, pages: d.pages));
     } else {
       final last = buckets.removeLast();
       buckets.add(
-        ChartBucket(last.start, last.days + 1, last.verses + d.verses),
+        ChartBucket(
+          last.start,
+          last.days + 1,
+          last.verses + d.verses,
+          pages: last.pages + d.pages,
+        ),
       );
     }
   }
   return RangeSummary(days, size, buckets);
 }
 
-/// Least-squares line through [ys] at x = 0, 1, 2, ..., or null when there
-/// are too few points for a trend to mean anything.
-({double intercept, double slope})? linearTrend(List<double> ys) {
-  final n = ys.length;
-  if (n < 3) return null;
-  final meanX = (n - 1) / 2;
-  final meanY = ys.fold<double>(0, (sum, y) => sum + y) / n;
-  var sxy = 0.0;
-  var sxx = 0.0;
-  for (var i = 0; i < n; i++) {
-    sxy += (i - meanX) * (ys[i] - meanY);
-    sxx += (i - meanX) * (i - meanX);
-  }
-  final slope = sxy / sxx;
-  return (intercept: meanY - slope * meanX, slope: slope);
+/// How far through the khathm the reader had reached by the end of each
+/// bucket, as a percentage of the mushaf's pages: the last position saved
+/// before the bucket ended, or null if nothing had been saved by then.
+/// [entries] are oldest first.
+List<double?> khathmReached(
+  List<ReadingEntry> entries,
+  List<ChartBucket> buckets,
+) {
+  return [
+    for (final b in buckets)
+      () {
+        final end = DateTime(b.start.year, b.start.month, b.start.day + b.days);
+        final before = entries.where((e) => e.savedAt.isBefore(end));
+        return before.isEmpty
+            ? null
+            : before.last.pages * 100 / mushafPageCount;
+      }(),
+  ];
 }

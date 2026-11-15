@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
+import '../data/quran.dart';
 import '../data/surahs.dart';
 import '../models/progress_range.dart';
 import '../models/reading_entry.dart';
@@ -73,12 +74,22 @@ class _ProgressScreenState extends State<ProgressScreen> {
                   children: [
                     Padding(
                       padding: const EdgeInsets.only(left: 12, bottom: 12),
-                      child: Text(
-                        'Verses per Day',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Verses per Day',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                          if (store.lastEntry case final last?)
+                            _KhathmBadge(
+                              percent: khathmPercent(last.surah, last.verse),
+                            ),
+                        ],
                       ),
                     ),
                     daily.isEmpty
@@ -100,7 +111,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                               ),
                             ),
                           )
-                        : _DailyChart(summary: summary),
+                        : _DailyChart(summary: summary, entries: store.entries),
                   ],
                 ),
               ),
@@ -387,23 +398,42 @@ class _StatTile extends StatelessWidget {
 }
 
 class _DailyChart extends StatelessWidget {
-  const _DailyChart({required this.summary});
+  const _DailyChart({required this.summary, required this.entries});
 
   final RangeSummary summary;
 
+  /// The reading history, oldest first, for the khathm line.
+  final List<ReadingEntry> entries;
+
   static const _barSlot = 36.0;
   static const _leftReserved = 36.0;
+  static const _rightReserved = 36.0;
   static const _bottomReserved = 40.0;
   static const _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-  String _tooltip(ChartBucket b) => switch (summary.size) {
-    BucketSize.day => '${formatDay(b.start)} · ${b.verses} verses',
-    BucketSize.week =>
-      'Week of ${formatDay(b.start)} · '
-          '${b.perDay.round()} verses/day',
-    BucketSize.month =>
-      '${formatMonth(b.start)} · ${b.perDay.round()} verses/day',
-  };
+  String _tooltip(ChartBucket b, double? reached) {
+    final read = switch (summary.size) {
+      BucketSize.day =>
+        '${formatDay(b.start)} · ${b.verses} verses\n'
+            '${_shareOfQuran(b.pages)} of the Quran',
+      BucketSize.week =>
+        'Week of ${formatDay(b.start)} · ${b.perDay.round()} verses/day\n'
+            '${_shareOfQuran(b.pages)} of the Quran in all',
+      BucketSize.month =>
+        '${formatMonth(b.start)} · ${b.perDay.round()} verses/day\n'
+            '${_shareOfQuran(b.pages)} of the Quran in all',
+    };
+    final khathm = reached == null
+        ? ''
+        : '\nKhathm at ${reached.toStringAsFixed(reached < 10 ? 1 : 0)}%';
+    return '$read$khathm';
+  }
+
+  /// [pages] of the mushaf as a share of the whole Quran, e.g. '4.6%'.
+  static String _shareOfQuran(double pages) {
+    final percent = pages * 100 / mushafPageCount;
+    return '${percent.toStringAsFixed(percent < 10 ? 1 : 0)}%';
+  }
 
   /// Bar label on two short lines so it fits the bar slot; the full date is
   /// in the tooltip.
@@ -421,36 +451,62 @@ class _DailyChart extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final buckets = summary.buckets;
+    // Verses read a day: that day's, or the average a day over a week or
+    // month.
     final values = [for (final b in buckets) b.perDay];
-    final trend = linearTrend(values);
     final maxValue = values.fold<double>(0, math.max);
     final maxY = maxValue == 0 ? 10.0 : maxValue * 1.2;
     final barColor = isDark ? AppColors.emeraldBright : AppColors.emerald;
-    final trendColor = isDark ? AppColors.goldLight : AppColors.goldDark;
+    final lineColor = isDark ? AppColors.goldLight : AppColors.goldDark;
+    final reached = khathmReached(entries, buckets);
+    final known = reached.whereType<double>();
+    // The khathm axis spans what is shown, rounded out to a round step, so
+    // a few percent of growth in a week still shows as a rise and its labels
+    // fall on round numbers.
+    final low = known.isEmpty ? 0.0 : known.reduce(math.min);
+    final high = known.isEmpty ? 100.0 : known.reduce(math.max);
+    final lineStep = high - low <= 40 ? 10.0 : 20.0;
+    final lineMin = (low / lineStep).floor() * lineStep;
+    final lineMax = math.max(
+      (high / lineStep).ceil() * lineStep,
+      lineMin + lineStep,
+    );
     final labelStyle = theme.textTheme.labelSmall?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
     );
 
-    // The trend line is a LineChart laid over the bars with the same axis
-    // space reserved. Bars are spaced evenly, so bar i is centred where the
-    // line chart puts x = i when its x axis runs from -0.5 to n - 0.5.
-    Widget? trendLine;
-    if (trend != null) {
-      final last = buckets.length - 1;
-      trendLine = IgnorePointer(
+    // The khathm line is a LineChart laid over the bars with the same axis
+    // space reserved, and its own percentage axis on the right. Bars are
+    // spaced evenly, so bar i is centred where the line chart puts x = i
+    // when its x axis runs from -0.5 to n - 0.5.
+    Widget? khathmLine;
+    if (known.isNotEmpty) {
+      khathmLine = IgnorePointer(
         child: LineChart(
           LineChartData(
             minX: -0.5,
             maxX: buckets.length - 0.5,
-            minY: 0,
-            maxY: maxY,
-            clipData: const FlClipData.all(),
+            minY: lineMin,
+            maxY: lineMax,
             gridData: const FlGridData(show: false),
             borderData: FlBorderData(show: false),
             lineTouchData: const LineTouchData(enabled: false),
             titlesData: FlTitlesData(
               topTitles: const AxisTitles(),
-              rightTitles: const AxisTitles(),
+              rightTitles: AxisTitles(
+                sideTitles: SideTitles(
+                  showTitles: true,
+                  reservedSize: _rightReserved,
+                  interval: lineStep,
+                  getTitlesWidget: (value, meta) => SideTitleWidget(
+                    meta: meta,
+                    child: Text(
+                      '${value.round()}%',
+                      style: labelStyle?.copyWith(color: lineColor),
+                    ),
+                  ),
+                ),
+              ),
               leftTitles: AxisTitles(
                 sideTitles: SideTitles(
                   showTitles: true,
@@ -469,13 +525,18 @@ class _DailyChart extends StatelessWidget {
             lineBarsData: [
               LineChartBarData(
                 spots: [
-                  FlSpot(0, trend.intercept),
-                  FlSpot(last.toDouble(), trend.intercept + trend.slope * last),
+                  for (var i = 0; i < buckets.length; i++)
+                    if (reached[i] case final r?) FlSpot(i.toDouble(), r),
                 ],
-                color: trendColor,
+                color: lineColor,
                 barWidth: 2.5,
-                dashArray: const [6, 4],
-                dotData: const FlDotData(show: false),
+                dotData: FlDotData(
+                  getDotPainter: (_, _, _, _) => FlDotCirclePainter(
+                    radius: 3,
+                    color: lineColor,
+                    strokeWidth: 0,
+                  ),
+                ),
               ),
             ],
           ),
@@ -487,8 +548,9 @@ class _DailyChart extends StatelessWidget {
       builder: (context, constraints) {
         final width = math.max(
           constraints.maxWidth,
-          buckets.length * _barSlot + _leftReserved,
+          buckets.length * _barSlot + _leftReserved + _rightReserved,
         );
+        final slot = (width - _leftReserved - _rightReserved) / buckets.length;
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           reverse: true,
@@ -512,15 +574,29 @@ class _DailyChart extends StatelessWidget {
                       borderData: FlBorderData(show: false),
                       titlesData: FlTitlesData(
                         topTitles: const AxisTitles(),
-                        rightTitles: const AxisTitles(),
+                        // Room for the khathm line's axis.
+                        rightTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            reservedSize: _rightReserved,
+                            getTitlesWidget: (_, _) => const SizedBox.shrink(),
+                          ),
+                        ),
                         leftTitles: AxisTitles(
                           sideTitles: SideTitles(
                             showTitles: true,
                             reservedSize: _leftReserved,
-                            getTitlesWidget: (value, meta) => Text(
-                              value.toInt().toString(),
-                              style: labelStyle,
-                            ),
+                            // The top of the axis is the headroom above the
+                            // tallest bar, not a round number, and its label
+                            // would crowd the gridline label just below it.
+                            getTitlesWidget: (value, meta) =>
+                                value == meta.max &&
+                                    value % meta.appliedInterval != 0
+                                ? const SizedBox.shrink()
+                                : Text(
+                                    value.toInt().toString(),
+                                    style: labelStyle,
+                                  ),
                           ),
                         ),
                         bottomTitles: AxisTitles(
@@ -558,7 +634,7 @@ class _DailyChart extends StatelessWidget {
                         touchTooltipData: BarTouchTooltipData(
                           getTooltipColor: (_) => AppColors.emeraldDark,
                           getTooltipItem: (group, _, _, _) => BarTooltipItem(
-                            _tooltip(buckets[group.x]),
+                            _tooltip(buckets[group.x], reached[group.x]),
                             const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w600,
@@ -591,7 +667,30 @@ class _DailyChart extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (trendLine != null) Positioned.fill(child: trendLine),
+                if (khathmLine != null) Positioned.fill(child: khathmLine),
+                // Each bar's verses above it: those read that day, or per day
+                // on average for a week or month. The bars are spaced evenly,
+                // each centred in its slot.
+                for (var i = 0; i < buckets.length; i++)
+                  if (values[i] > 0)
+                    Positioned(
+                      left: _leftReserved + slot * i,
+                      width: slot,
+                      top:
+                          (220 - _bottomReserved) * (1 - values[i] / maxY) - 16,
+                      child: IgnorePointer(
+                        child: Text(
+                          '${values[i].round()}',
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          style: labelStyle?.copyWith(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: barColor,
+                          ),
+                        ),
+                      ),
+                    ),
               ],
             ),
           ),
@@ -618,12 +717,12 @@ class _DailyChart extends StatelessWidget {
                 },
                 labelStyle: labelStyle,
               ),
-              if (trend != null)
+              if (khathmLine != null)
                 _LegendItem(
-                  color: trendColor,
-                  label: 'Trend',
+                  color: lineColor,
+                  label: 'Khathm progress',
                   labelStyle: labelStyle,
-                  dashed: true,
+                  line: true,
                 ),
             ],
           ),
@@ -633,35 +732,63 @@ class _DailyChart extends StatelessWidget {
   }
 }
 
+/// How far through the khathm the saved position is, beside the chart's
+/// title.
+class _KhathmBadge extends StatelessWidget {
+  const _KhathmBadge({required this.percent});
+
+  final int percent;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.gold.withAlpha(40),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        '$percent% of khathm',
+        style: theme.textTheme.labelMedium?.copyWith(
+          fontWeight: FontWeight.w700,
+          color: theme.brightness == Brightness.dark
+              ? AppColors.goldLight
+              : AppColors.goldDark,
+        ),
+      ),
+    );
+  }
+}
+
 class _LegendItem extends StatelessWidget {
   const _LegendItem({
     required this.color,
     required this.label,
     required this.labelStyle,
-    this.dashed = false,
+    this.line = false,
   });
 
   final Color color;
   final String label;
   final TextStyle? labelStyle;
-  final bool dashed;
+
+  /// Whether the swatch is a line (for a line series) rather than a square.
+  final bool line;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        dashed
-            ? Row(
-                children: [
-                  for (var i = 0; i < 3; i++)
-                    Container(
-                      width: 4,
-                      height: 2.5,
-                      margin: const EdgeInsets.only(right: 2),
-                      color: color,
-                    ),
-                ],
+        line
+            ? Container(
+                width: 14,
+                height: 2.5,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               )
             : Container(
                 width: 10,

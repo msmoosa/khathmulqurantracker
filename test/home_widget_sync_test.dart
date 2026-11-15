@@ -1,12 +1,19 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:khathmtracker/data/surahs.dart';
+import 'package:khathmtracker/data/quran.dart';
 import 'package:khathmtracker/models/reading_entry.dart';
 import 'package:khathmtracker/state/home_widget_sync.dart';
 
 void main() {
-  test('khathm percentage runs from the first verse to the last', () {
+  test('khathm progress is counted in mushaf pages', () {
+    // Page 1 is Al-Fatihah 1-7, page 2 Al-Baqarah 1-5.
+    expect(pagesRead(1, 7), 1);
+    expect(pagesRead(2, 5), 2);
+    expect(pagesRead(2, 3), closeTo(1.6, 1e-9));
+    expect(pagesRead(114, 6), mushafPageCount);
+
     expect(khathmPercent(1, 1), 0);
-    expect(khathmPercent(2, 255), 4);
+    // On page 42: between 41 and 42 of 604 pages.
+    expect(khathmPercent(2, 255), 6);
     expect(khathmPercent(114, 5), 99);
     expect(khathmPercent(114, 6), 100);
   });
@@ -36,7 +43,7 @@ void main() {
     ], now);
     expect(values, {
       'position': 'Al-Baqarah 2:255',
-      'percent': 4,
+      'percent': 6,
       'streak': 3,
       'last_read_day': '2026-11-15',
       'last_read_verses': 155,

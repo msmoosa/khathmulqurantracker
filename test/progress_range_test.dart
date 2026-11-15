@@ -54,11 +54,30 @@ void main() {
     });
   });
 
-  test('linearTrend fits a straight line', () {
-    expect(linearTrend([1, 2]), isNull);
-    final t = linearTrend([1, 3, 5, 7])!;
-    expect(t.slope, closeTo(2, 1e-9));
-    expect(t.intercept, closeTo(1, 1e-9));
+  test('khathmReached follows the position at the end of each bar', () {
+    ReadingEntry at(int day, int surah, int verse) => ReadingEntry(
+      surah: surah,
+      verse: verse,
+      savedAt: DateTime(2026, 11, day, 9),
+    );
+    final buckets = [
+      ChartBucket(DateTime(2026, 11, 2), 1, 0),
+      ChartBucket(DateTime(2026, 11, 3), 1, 0),
+      ChartBucket(DateTime(2026, 11, 4), 1, 0),
+      ChartBucket(DateTime(2026, 11, 5), 2, 0),
+    ];
+    final reached = khathmReached([
+      at(3, 1, 7),
+      at(5, 2, 100),
+      at(6, 114, 6),
+    ], buckets);
+    expect(reached[0], isNull);
+    // Through 1:7 is the whole of page 1.
+    expect(reached[1], closeTo(100 / 604, 1e-9));
+    // Nothing saved on the 4th: still where the 3rd left off.
+    expect(reached[2], reached[1]);
+    // A two-day bar ends at its last day's position, the end of the Quran.
+    expect(reached[3], 100);
   });
 
   group('readingStreak', () {
