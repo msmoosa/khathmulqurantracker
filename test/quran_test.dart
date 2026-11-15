@@ -172,6 +172,10 @@ void main() {
     await tester.tap(find.text('Mark as read up to here'));
     await tester.pumpAndSettle();
     expect(tracker.lastEntry?.verse, 2);
+    // Confirmed as on the Track tab, with the streak when there is one.
+    expect(find.textContaining('Saved Al-Baqarah 2:2'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
   });
 
   testWidgets('scrolls a large-text page to the highlighted verse', (

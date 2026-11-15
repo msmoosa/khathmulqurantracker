@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -11,6 +13,7 @@ import 'screens/quran_reader_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/tracker_screen.dart';
 import 'state/appearance_store.dart';
+import 'state/home_widget_sync.dart';
 import 'state/reader_store.dart';
 import 'state/reminder_service.dart';
 import 'state/tracker_store.dart';
@@ -29,14 +32,19 @@ Future<void> main() async {
         )
       : TrackerStore(prefs);
   reminders.watch(store);
+  final homeWidget = HomeWidgetSync(store);
   runApp(
     KhathmTrackerApp(
       store: store,
       reminders: reminders,
       reader: ReaderStore(prefs),
       appearance: AppearanceStore(prefs),
+      widgetTaps: HomeWidgetSync.isSupported ? HomeWidgetSync.taps() : null,
     ),
   );
+  homeWidget.start().catchError((Object e) {
+    debugPrint('Home widget setup failed: $e');
+  });
   // Set up reminders after the first frame so a slow or failing plugin call
   // can never leave the app stuck on the launch screen.
   reminders.init().catchError((Object e) {
@@ -51,12 +59,16 @@ class KhathmTrackerApp extends StatelessWidget {
     required this.reminders,
     required this.reader,
     required this.appearance,
+    this.widgetTaps,
   });
 
   final TrackerStore store;
   final ReminderService reminders;
   final ReaderStore reader;
   final AppearanceStore appearance;
+
+  /// Taps on the home screen widget, each with the link it opens.
+  final Stream<Uri>? widgetTaps;
 
   @override
   Widget build(BuildContext context) {
@@ -73,6 +85,7 @@ class KhathmTrackerApp extends StatelessWidget {
           reminders: reminders,
           reader: reader,
           appearance: appearance,
+          widgetTaps: widgetTaps,
         ),
       ),
     );
@@ -86,12 +99,14 @@ class HomeShell extends StatefulWidget {
     required this.reminders,
     required this.reader,
     required this.appearance,
+    this.widgetTaps,
   });
 
   final TrackerStore store;
   final ReminderService reminders;
   final ReaderStore reader;
   final AppearanceStore appearance;
+  final Stream<Uri>? widgetTaps;
 
   @override
   State<HomeShell> createState() => _HomeShellState();
@@ -107,10 +122,14 @@ class _HomeShellState extends State<HomeShell> {
   ];
 
   int _tab = kDemoTab;
+  StreamSubscription<Uri>? _widgetTaps;
 
   @override
   void initState() {
     super.initState();
+    _widgetTaps = widget.widgetTaps?.listen((uri) {
+      if (uri.host == HomeWidgetSync.continueUri.host) _continueReading();
+    });
     if (ReminderService.isSupported &&
         !kDemoMode &&
         !widget.reminders.hasPrompted) {
@@ -119,6 +138,34 @@ class _HomeShellState extends State<HomeShell> {
     if (kDemoPage > 0 || kDemoVerse.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _openDemoReader());
     }
+  }
+
+  @override
+  void dispose() {
+    _widgetTaps?.cancel();
+    super.dispose();
+  }
+
+  /// Opens the reader where the tracker is up to, with that verse marked,
+  /// as the Continue reading card does.
+  void _continueReading() {
+    final last = widget.store.lastEntry;
+    final verse = last == null ? null : VerseRef(last.surah, last.verse);
+    // Back to the tabs first, in case the reader was already open.
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => QuranReaderScreen(
+          initialPage: verse == null
+              ? widget.reader.lastPage ?? 1
+              : pageOf(verse.surah, verse.verse),
+          highlight: verse,
+          reader: widget.reader,
+          tracker: widget.store,
+          appearance: widget.appearance,
+        ),
+      ),
+    );
   }
 
   /// Opens the reader for screenshots, as set by `DEMO_PAGE` or `DEMO_VERSE`.
@@ -241,7 +288,7 @@ class _HomeShellState extends State<HomeShell> {
             NavigationDestination(
               icon: Icon(Icons.menu_book_outlined),
               selectedIcon: Icon(Icons.menu_book),
-              label: 'Tracker',
+              label: 'Track',
             ),
             NavigationDestination(
               icon: Icon(Icons.bar_chart_outlined),

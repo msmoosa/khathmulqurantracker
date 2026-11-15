@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Refreshed by the app whenever progress is saved, and hourly so a new
+     day (or a lapsed streak) shows without opening the app. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/widget_description"
+    android:initialLayout="@layout/khathm_widget"
+    android:minWidth="180dp"
+    android:minHeight="110dp"
+    android:previewLayout="@layout/khathm_widget"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellWidth="3"
+    android:targetCellHeight="2"
+    android:updatePeriodMillis="3600000"
+    android:widgetCategory="home_screen" />

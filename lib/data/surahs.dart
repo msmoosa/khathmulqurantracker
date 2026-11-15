@@ -141,3 +141,8 @@ final int totalVerses = _versesBefore.last + surahs.last.verseCount;
 /// Converts a (surah, verse) position into a 1-based index across the
 /// whole Quran, so Al-Fatihah 1 is 1 and An-Nas 6 is [totalVerses].
 int absoluteVerse(int surah, int verse) => _versesBefore[surah - 1] + verse;
+
+/// How far through the Quran reading up to [surah]:[verse] is, as a whole
+/// percentage: 100 only at the last verse.
+int khathmPercent(int surah, int verse) =>
+    absoluteVerse(surah, verse) * 100 ~/ totalVerses;

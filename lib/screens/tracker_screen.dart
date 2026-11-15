@@ -6,12 +6,11 @@ import 'package:flutter/material.dart';
 import '../data/quran.dart';
 import '../data/surahs.dart';
 import '../models/reading_entry.dart';
-import '../models/streak.dart';
 import '../state/appearance_store.dart';
 import '../state/reader_store.dart';
 import '../state/tracker_store.dart';
 import '../theme.dart';
-import '../widgets/top_toast.dart';
+import '../widgets/saved_toast.dart';
 import 'quran_reader_screen.dart';
 
 class TrackerScreen extends StatefulWidget {
@@ -97,21 +96,7 @@ class _TrackerScreenState extends State<TrackerScreen> {
   Future<void> _save() async {
     await widget.store.save(_surah, _verse);
     if (!mounted) return;
-    final saved = 'Saved ${_current.name} $_surah:$_verse';
-    final streak = readingStreak(widget.store.daily, DateTime.now()).current;
-    if (streak == 0) {
-      showTopToast(context, saved);
-    } else {
-      showTopToast(
-        context,
-        streak == 1 ? '$saved · Streak started' : '$saved · $streak-day streak',
-        icon: Icons.local_fire_department_rounded,
-        // The toast is dark in light mode and light in dark mode.
-        iconColor: Theme.of(context).brightness == Brightness.dark
-            ? AppColors.goldDark
-            : AppColors.goldLight,
-      );
-    }
+    showSavedToast(context, widget.store, _surah, _verse);
   }
 
   void _reset() {
@@ -161,6 +146,8 @@ class _TrackerScreenState extends State<TrackerScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (last != null)
+            _KhathmProgress(surah: last.surah, verse: last.verse),
           // Labels and pickers, capped at 30% of the screen height and
           // centred in the space above the buttons.
           Expanded(
@@ -317,6 +304,78 @@ class _TrackerScreenState extends State<TrackerScreen> {
       ),
     );
   }
+}
+
+/// How far through the khathm the saved position is.
+class _KhathmProgress extends StatelessWidget {
+  const _KhathmProgress({required this.surah, required this.verse});
+
+  final int surah;
+  final int verse;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final percent = khathmPercent(surah, verse);
+    final read = absoluteVerse(surah, verse);
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text(
+                  '$percent%',
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'of this khathm',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: read / totalVerses,
+                minHeight: 8,
+                backgroundColor: theme.colorScheme.primary.withAlpha(30),
+                valueColor: const AlwaysStoppedAnimation(AppColors.gold),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '${surahs[surah - 1].name} $surah:$verse · '
+              '${_thousands(read)} of ${_thousands(totalVerses)} verses',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static String _thousands(int n) => n.toString().replaceAllMapped(
+    RegExp(r'(\d)(?=(\d{3})+$)'),
+    (m) => '${m[1]},',
+  );
 }
 
 class _PickerCard extends StatelessWidget {

@@ -13,7 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Architecture
 
-Flutter app for reading the Quran and tracking reading progress (khathm completion). Four tabs with bottom navigation: Read, Tracker, Progress, Settings.
+Flutter app for reading the Quran and tracking reading progress (khathm completion). Five tabs with bottom navigation: Read, Track, Progress, Inspire, Settings.
 
 **State management:** Single `TrackerStore` (extends `ChangeNotifier`) holds all reading history, persisted to `SharedPreferences` as JSON. Screens listen via `addListener`/`ListenableBuilder`.
 
@@ -28,14 +28,19 @@ Flutter app for reading the Quran and tracking reading progress (khathm completi
 **Screens:**
 - `QuranIndexScreen` (first tab) — continue-reading card, Surah/Juz toggle, searchable surah index. Opens `QuranReaderScreen`.
 - `QuranReaderScreen` — `PageView` of the 604 mushaf pages (reversed so pages turn right-to-left), each laid out line for line as printed: text sized to fit the widest line, lines justified and spread over the page height (scrolls instead when too short, e.g. landscape). Styled after a printed mushaf: full-screen paper page with a caption (surah, juz, hizb, page) and engraved surah frames (`_SurahFramePainter`). A tap toggles the top bar; holding a verse offers "Mark as read up to here" (saves to `TrackerStore`) and copy.
-- `TrackerScreen` — surah CupertinoPicker (~3 visible items) + verse TextField with +/- stepper buttons (long-press repeats). Shows progress in an Islamic-themed gradient header.
+- `TrackerScreen` — khathm progress card (`khathmPercent`), surah and verse CupertinoPickers, Save/Reset, and a button to read the selected verse. Saves (here or from the reader) confirm with `showSavedToast`, which includes the streak.
 - `ProgressScreen` — daily stats row, bar chart (fl_chart), and swipe-to-delete history list.
+- `InspireScreen` — verses and hadith (`data/inspirations.dart`) played like stories: auto-advancing cards with progress bars, tap left/right, hold to pause. Pauses while its tab is hidden (`Visibility.of`) or covered (`TickerMode`).
+
+**Home screen widget:** `HomeWidgetSync` (`state/home_widget_sync.dart`, `home_widget` package) saves plain values (position, khathm percent, streak and the day it was counted to) whenever the tracker changes; the widgets work out a new day or lapsed streak themselves. iOS: `ios/KhathmWidget` WidgetKit extension target, sharing App Group `group.com.khathmulqurantracker` with Runner (both `.entitlements`); its version comes from `KhathmWidget.xcconfig`. Android: `KhathmWidgetProvider.kt` with `res/layout/khathm_widget.xml`. A tap opens `khathmtracker://continue?homeWidget`, which `HomeShell` turns into the reader at the tracked verse.
 
 **Theming:** `theme.dart` defines full light/dark themes using an emerald green + gold Islamic palette (`AppColors`). `widgets/islamic_patterns.dart` provides decorative elements (8-pointed star pattern painter, gradient header with Bismillah, diamond divider).
 
 ## Signing
 
 Android release signing uses `android/key.properties` (gitignored) pointing to `~/upload-keystore.jks`. The keystore alias is `upload`.
+
+iOS signs automatically with team `Q53433LY86`. Runner and the `KhathmWidget` extension both need the App Groups capability (`group.com.khathmulqurantracker`) in their provisioning profiles, which Xcode creates only while signed in to the developer account (Xcode → Settings → Accounts).
 
 ## Package
 

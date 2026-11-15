@@ -52,7 +52,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('Tracker'));
+    await tester.tap(find.text('Track'));
     await tester.pumpAndSettle();
     expect(find.text('Verse / 7'), findsOneWidget);
 
@@ -89,7 +89,7 @@ void main() {
         appearance: appearance,
       ),
     );
-    await tester.tap(find.text('Tracker'));
+    await tester.tap(find.text('Track'));
     await tester.pumpAndSettle();
 
     // As "Mark as read up to here" in the reader does.

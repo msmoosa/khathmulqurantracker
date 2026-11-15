@@ -15,6 +15,7 @@ import '../state/tracker_store.dart';
 import '../theme.dart';
 import '../widgets/islamic_patterns.dart';
 import '../widgets/no_bold_text.dart';
+import '../widgets/saved_toast.dart';
 
 /// Reads the Quran page by page as the classic Madani mushaf (1405 AH
 /// print of the King Fahd Complex): the same 604 pages, each with the same
@@ -201,9 +202,9 @@ class _QuranReaderScreenState extends State<QuranReaderScreen> {
     switch (action) {
       case _VerseAction.track:
         await widget.tracker.save(ref.surah, ref.verse);
-        messenger.showSnackBar(
-          SnackBar(content: Text('Saved ${surah.name} ${ref.verse}')),
-        );
+        if (mounted) {
+          showSavedToast(context, widget.tracker, ref.surah, ref.verse);
+        }
       case _VerseAction.copy:
         await Clipboard.setData(
           ClipboardData(
