@@ -16,7 +16,7 @@ publish_to: "none" # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.1.1+4
+version: 1.1.1+5
 
 environment:
   sdk: ^3.8.1
@@ -79,6 +79,9 @@ flutter:
   assets:
     # Tanzil Quran Text (Uthmani), tanzil.net, CC BY 3.0. Kept verbatim.
     - assets/quran/quran-uthmani.txt
+    # Saheeh International translation via Tanzil (tanzil.net/trans), for
+    # non-commercial use. Kept verbatim.
+    - assets/quran/en.sahih.txt
     # QPC V1 glyph codes per mushaf line (quran.com / qul.tarteel.ai).
     - assets/quran/qpc-v1-words.txt
 

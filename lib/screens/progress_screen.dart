@@ -826,11 +826,9 @@ class _HistoryTile extends StatelessWidget {
       background: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.symmetric(horizontal: 20),
-        color: theme.colorScheme.errorContainer,
-        child: Icon(
-          Icons.delete_rounded,
-          color: theme.colorScheme.onErrorContainer,
-        ),
+        // A plain, solid red in both themes, so deleting reads clearly.
+        color: Colors.red.shade600,
+        child: const Icon(Icons.delete_rounded, color: Colors.white),
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),

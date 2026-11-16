@@ -244,8 +244,9 @@ class SettingsScreen extends StatelessWidget {
                       'Fahd Glorious Quran Printing Complex, with page '
                       'layout from quran.com and the Quranic Universal '
                       'Library (qul.tarteel.ai). Uthmani text from the '
-                      'Tanzil Project (tanzil.net), CC BY 3.0. Fallback '
-                      'font: Amiri Quran (SIL OFL).',
+                      'Tanzil Project (tanzil.net), CC BY 3.0. English '
+                      'translation: Saheeh International, via Tanzil. '
+                      'Fallback font: Amiri Quran (SIL OFL).',
                     ),
                   ),
                 ],

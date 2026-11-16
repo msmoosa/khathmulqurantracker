@@ -8,6 +8,7 @@ import '../data/mushaf_layout.dart';
 import '../data/quran.dart';
 import '../data/qpc_words.dart';
 import '../data/surahs.dart';
+import '../data/translation.dart';
 import '../state/appearance_store.dart';
 import '../state/mushaf_fonts.dart';
 import '../state/reader_store.dart';
@@ -167,6 +168,8 @@ class _QuranReaderScreenState extends State<QuranReaderScreen> {
     final action = await showModalBottomSheet<_VerseAction>(
       context: context,
       showDragHandle: true,
+      // Lets a long translation take the room it needs.
+      isScrollControlled: true,
       builder: (context) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -181,6 +184,7 @@ class _QuranReaderScreenState extends State<QuranReaderScreen> {
                 ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
               ),
             ),
+            _VerseTranslation(verse: ref),
             ListTile(
               leading: const Icon(Icons.bookmark_added_outlined),
               title: const Text('Mark as read up to here'),
@@ -325,6 +329,51 @@ class _QuranReaderScreenState extends State<QuranReaderScreen> {
 }
 
 enum _VerseAction { track, copy }
+
+/// The verse's meaning in English, in the verse menu. A long one scrolls
+/// within at most half the screen.
+class _VerseTranslation extends StatelessWidget {
+  const _VerseTranslation({required this.verse});
+
+  final VerseRef verse;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return FutureBuilder<Translation>(
+      future: Translation.load(),
+      initialData: Translation.loaded,
+      builder: (context, snapshot) {
+        final translation = snapshot.data;
+        if (translation == null) return const SizedBox.shrink();
+        return ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * 0.5,
+          ),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  translation.verse(verse.surah, verse.verse),
+                  style: theme.textTheme.bodyLarge?.copyWith(height: 1.5),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  Translation.name,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
 
 /// Lines per page of the Madani mushaf.
 const _linesPerPage = 15;
