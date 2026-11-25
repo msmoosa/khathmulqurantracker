@@ -14,19 +14,34 @@ void main() {
     expect(absoluteVerse(114, 6), 6236);
   });
 
-  test('first entry is only a baseline', () {
+  test('a first entry past the opening surahs is only a baseline', () {
     expect(dailyCounts([e(18, 50, DateTime(2026, 10, 1))]), isEmpty);
+    expect(dailyCounts([e(3, 1, DateTime(2026, 10, 1))]), isEmpty);
+  });
+
+  test('a first entry in the opening surahs counts from the start', () {
+    final one = dailyCounts([e(1, 7, DateTime(2026, 10, 1))]).single;
+    expect(one.day, DateTime(2026, 10, 1));
+    expect(one.verses, 7);
+    expect(one.pages, 1);
+
+    final counts = dailyCounts([
+      e(2, 5, DateTime(2026, 10, 1)),
+      e(2, 25, DateTime(2026, 10, 2)),
+    ]);
+    expect(counts.map((c) => c.verses), [7 + 5, 20]);
   });
 
   test('counts verses between saves and groups by day', () {
     final counts = dailyCounts([
-      e(2, 100, DateTime(2026, 10, 1, 8)), // baseline, skipped
+      e(18, 1, DateTime(2026, 9, 30, 8)), // baseline, skipped
+      e(2, 100, DateTime(2026, 10, 1, 8)), // a backwards correction: 0
       e(2, 150, DateTime(2026, 10, 2, 8)), // +50
       e(2, 160, DateTime(2026, 10, 2, 20)), // +10
       e(3, 1, DateTime(2026, 10, 4, 9)), // +126 (286 - 160) + 1
     ]);
-    expect(counts.map((c) => c.verses), [60, 0, 127]);
-    expect(counts.first.day, DateTime(2026, 10, 2));
+    expect(counts.map((c) => c.verses), [0, 60, 0, 127]);
+    expect(counts.first.day, DateTime(2026, 10, 1));
     expect(counts.last.day, DateTime(2026, 10, 4));
   });
 
@@ -37,7 +52,7 @@ void main() {
       e(114, 6, DateTime(2026, 10, 3)), // the end of the Quran
       e(1, 7, DateTime(2026, 10, 4)), // a new khathm, through page 1
     ]);
-    expect(counts.map((c) => c.pages), [1, 602, 1]);
+    expect(counts.map((c) => c.pages), [1, 1, 602, 1]);
   });
 
   test('wrapping from the end to the start counts as a new khathm', () {

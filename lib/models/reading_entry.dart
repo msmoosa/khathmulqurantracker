@@ -42,30 +42,45 @@ class DailyCount {
 
 DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
 
+/// Surahs a first save may be in and still count from the start of the
+/// Quran: someone saving here is taken to be starting their khathm.
+const countFromStartThroughSurah = 2;
+
 /// Turns the saved positions into verses read per day.
 ///
 /// Each entry contributes the distance from the previous entry. The first
-/// entry has no predecessor, so it only sets the baseline (the user may
-/// start tracking mid-Quran). Moving backwards past the start is treated as
-/// finishing a khathm and starting again; any other backward move counts as
-/// zero. Days between the first and last reading with no saves are filled
-/// with zero so the chart shows gaps.
+/// entry has no predecessor: in the opening surahs (through
+/// [countFromStartThroughSurah]) it counts from the start of the Quran, as
+/// someone starting their khathm, and anywhere later it only sets the
+/// baseline, as the user may start tracking mid-Quran. Moving backwards past
+/// the start is treated as finishing a khathm and starting again; any other
+/// backward move counts as zero. Days between the first and last reading
+/// with no saves are filled with zero so the chart shows gaps.
 List<DailyCount> dailyCounts(List<ReadingEntry> entries) {
-  if (entries.length < 2) return const [];
+  if (entries.isEmpty) return const [];
   final sorted = [...entries]..sort((a, b) => a.savedAt.compareTo(b.savedAt));
+  final fromStart = sorted.first.surah <= countFromStartThroughSurah;
+  if (!fromStart && sorted.length < 2) return const [];
 
   final totals = <DateTime, int>{};
   final pages = <DateTime, double>{};
+  void count(DateTime day, int verses, double read) {
+    totals[day] = (totals[day] ?? 0) + verses;
+    pages[day] = (pages[day] ?? 0) + read;
+  }
+
+  if (fromStart) {
+    final cur = sorted.first;
+    count(_dateOnly(cur.savedAt), cur.absolute, cur.pages);
+  }
   for (var i = 1; i < sorted.length; i++) {
     final prev = sorted[i - 1];
     final cur = sorted[i];
-    final day = _dateOnly(cur.savedAt);
     final verses = _distance(prev.absolute, cur.absolute);
-    totals[day] = (totals[day] ?? 0) + verses;
-    pages[day] = (pages[day] ?? 0) + _pageDistance(prev, cur, verses);
+    count(_dateOnly(cur.savedAt), verses, _pageDistance(prev, cur, verses));
   }
 
-  final first = _dateOnly(sorted[1].savedAt);
+  final first = _dateOnly(sorted[fromStart ? 0 : 1].savedAt);
   final last = _dateOnly(sorted.last.savedAt);
   final result = <DailyCount>[];
   // Step by calendar day rather than Duration(days: 1) to stay correct

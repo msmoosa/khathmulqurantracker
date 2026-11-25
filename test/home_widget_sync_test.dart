@@ -34,8 +34,10 @@ void main() {
       'last_read_verses': 0,
     });
 
-    // Read on the 13th, 14th and 15th: a three-day streak up to today.
+    // A baseline on the 12th, then read on the 13th, 14th and 15th: a
+    // three-day streak up to today.
     final values = HomeWidgetSync.values([
+      at(11, 18, 1),
       at(12, 2, 1),
       at(13, 2, 20),
       at(14, 2, 100),

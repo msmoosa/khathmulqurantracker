@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../data/daily_surahs.dart';
 import '../data/quran.dart';
 import '../data/quran_meta.dart';
 import '../data/surahs.dart';
@@ -106,6 +107,20 @@ class _QuranIndexScreenState extends State<QuranIndexScreen> {
                   );
                 },
               ),
+              ListenableBuilder(
+                listenable: widget.reader,
+                builder: (context, _) => _DailySurahs(
+                  marks: widget.reader.surahMarks,
+                  onOpen: (d) {
+                    final mark = d.verse
+                        ? null
+                        : widget.reader.surahMark(d.start.surah);
+                    final at = mark ?? d.start.verse;
+                    _open(pageOf(d.start.surah, at));
+                  },
+                ),
+              ),
+              const SizedBox(height: 10),
               SegmentedButton<_IndexMode>(
                 segments: const [
                   ButtonSegment(value: _IndexMode.surah, label: Text('Surah')),
@@ -157,7 +172,14 @@ class _QuranIndexScreenState extends State<QuranIndexScreen> {
         ),
         Expanded(
           child: _mode == _IndexMode.surah
-              ? _SurahList(surahs: _filtered, onOpen: _open)
+              ? ListenableBuilder(
+                  listenable: widget.reader,
+                  builder: (context, _) => _SurahList(
+                    surahs: _filtered,
+                    marks: widget.reader.surahMarks,
+                    onOpen: _open,
+                  ),
+                )
               : _JuzList(onOpen: _open),
         ),
       ],
@@ -230,10 +252,208 @@ class _ContinueCard extends StatelessWidget {
   }
 }
 
+/// A line of surahs commonly read every day. A tap opens one (at its
+/// surah mark, if it has one) and a hold shows the hadith about it.
+class _DailySurahs extends StatelessWidget {
+  const _DailySurahs({required this.marks, required this.onOpen});
+
+  final Map<int, int> marks;
+  final ValueChanged<DailySurah> onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    return SizedBox(
+      height: 34,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: [
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Text(
+                'Often read',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.4,
+                ),
+              ),
+            ),
+          ),
+          for (final d in dailySurahs)
+            Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: Material(
+                color: theme.colorScheme.surfaceContainerLowest,
+                shape: StadiumBorder(
+                  side: BorderSide(
+                    color: isDark ? AppColors.goldDark : AppColors.gold,
+                    width: 0.8,
+                  ),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: () => onOpen(d),
+                  onLongPress: () => _showVirtues(context, d),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (!d.verse && marks.containsKey(d.start.surah)) ...[
+                          Icon(
+                            Icons.bookmark_rounded,
+                            size: 14,
+                            color: surahMarkColor(context),
+                          ),
+                          const SizedBox(width: 3),
+                        ],
+                        Text(
+                          d.label,
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _showVirtues(BuildContext context, DailySurah d) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => _VirtuesDialog(
+        surah: d,
+        onOpen: () {
+          Navigator.pop(context);
+          onOpen(d);
+        },
+      ),
+    );
+  }
+}
+
+/// The hadith about reciting a daily surah, each marked strong or weak.
+class _VirtuesDialog extends StatelessWidget {
+  const _VirtuesDialog({required this.surah, required this.onOpen});
+
+  final DailySurah surah;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final muted = theme.colorScheme.onSurfaceVariant;
+    return AlertDialog(
+      title: Text(surah.label),
+      contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (final (i, v) in surah.virtues.indexed) ...[
+              if (i > 0) const Divider(height: 24),
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: _StrengthChip(strength: v.strength),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '"${v.meaning}"',
+                style: theme.textTheme.bodyMedium?.copyWith(height: 1.4),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Narrated by ${v.narrator} · ${v.source}',
+                style: theme.textTheme.bodySmall?.copyWith(color: muted),
+              ),
+              Text(
+                'Grading: ${v.grade}',
+                style: theme.textTheme.bodySmall?.copyWith(color: muted),
+              ),
+            ],
+            const SizedBox(height: 16),
+            Text(
+              'Weak hadith are shown so you know of them; scholars do not '
+              'rely on them to establish a virtue.',
+              style: theme.textTheme.labelSmall?.copyWith(color: muted),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Close'),
+        ),
+        FilledButton(onPressed: onOpen, child: const Text('Read')),
+      ],
+    );
+  }
+}
+
+class _StrengthChip extends StatelessWidget {
+  const _StrengthChip({required this.strength});
+
+  final HadithStrength strength;
+
+  @override
+  Widget build(BuildContext context) {
+    final strong = strength == HadithStrength.strong;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final color = strong
+        ? (isDark ? AppColors.emeraldBright : AppColors.emerald)
+        : (isDark ? const Color(0xFFE0A050) : const Color(0xFFA85A12));
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withAlpha(30),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withAlpha(120)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            strong ? Icons.verified_rounded : Icons.error_outline_rounded,
+            size: 14,
+            color: color,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            strong ? 'Strong hadith' : 'Weak hadith',
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SurahList extends StatelessWidget {
-  const _SurahList({required this.surahs, required this.onOpen});
+  const _SurahList({
+    required this.surahs,
+    required this.marks,
+    required this.onOpen,
+  });
 
   final List<Surah> surahs;
+
+  /// [ReaderStore.surahMarks]: a marked surah opens at its mark.
+  final Map<int, int> marks;
   final ValueChanged<int> onOpen;
 
   @override
@@ -263,12 +483,14 @@ class _SurahList extends StatelessWidget {
         final s = surahs[i];
         final page = pageOf(s.number, 1);
         final place = surahIsMeccan[s.number - 1] ? 'Meccan' : 'Medinan';
+        final mark = marks[s.number];
         return _IndexTile(
           number: s.number,
           title: s.name,
           subtitle: '$place · ${s.verseCount} verses · Page $page',
+          mark: mark,
           arabic: surahArabicNames[s.number - 1],
-          onTap: () => onOpen(page),
+          onTap: () => onOpen(mark == null ? page : pageOf(s.number, mark)),
         );
       },
     );
@@ -317,11 +539,15 @@ class _IndexTile extends StatelessWidget {
     required this.subtitle,
     required this.arabic,
     required this.onTap,
+    this.mark,
   });
 
   final int number;
   final String title;
   final String subtitle;
+
+  /// The verse of the surah's mark, if it has one.
+  final int? mark;
   final String arabic;
   final VoidCallback onTap;
 
@@ -338,8 +564,29 @@ class _IndexTile extends StatelessWidget {
           fontWeight: FontWeight.w600,
         ),
       ),
-      subtitle: Text(
-        subtitle,
+      subtitle: Text.rich(
+        TextSpan(
+          children: [
+            if (mark != null) ...[
+              WidgetSpan(
+                alignment: PlaceholderAlignment.middle,
+                child: Icon(
+                  Icons.bookmark_rounded,
+                  size: 14,
+                  color: surahMarkColor(context),
+                ),
+              ),
+              TextSpan(
+                text: 'Verse $mark · ',
+                style: TextStyle(
+                  color: surahMarkColor(context),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+            TextSpan(text: subtitle),
+          ],
+        ),
         style: theme.textTheme.bodySmall?.copyWith(
           color: theme.colorScheme.onSurfaceVariant,
         ),

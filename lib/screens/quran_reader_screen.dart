@@ -17,6 +17,7 @@ import '../theme.dart';
 import '../widgets/islamic_patterns.dart';
 import '../widgets/no_bold_text.dart';
 import '../widgets/saved_toast.dart';
+import '../widgets/top_toast.dart';
 
 /// Reads the Quran page by page as the classic Madani mushaf (1405 AH
 /// print of the King Fahd Complex): the same 604 pages, each with the same
@@ -247,10 +248,75 @@ class _QuranReaderScreenState extends State<QuranReaderScreen> {
     );
   }
 
+  /// A tap on a surah mark: says what it is and offers to remove it.
+  Future<void> _onMarkTap(VerseRef ref) async {
+    final surah = surahs[ref.surah - 1];
+    final remove = await showModalBottomSheet<bool>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 4),
+              child: Row(
+                children: [
+                  Icon(Icons.bookmark_rounded, color: surahMarkColor(context)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Surah mark · ${surah.name} ${ref.verse}',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+              child: Text(
+                'Your place in ${surah.name}, kept separately from your '
+                'khathm. Each surah has at most one.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.bookmark_remove_rounded),
+              title: const Text('Remove surah mark'),
+              onTap: () => Navigator.pop(context, true),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (remove == true) await _removeMark(ref);
+  }
+
+  Future<void> _removeMark(VerseRef ref) async {
+    HapticFeedback.lightImpact();
+    await widget.reader.removeSurahMark(ref.surah);
+    if (mounted) {
+      showTopToast(
+        context,
+        'Surah mark removed from ${surahs[ref.surah - 1].name}',
+        icon: Icons.bookmark_remove_rounded,
+      );
+    }
+  }
+
   Future<void> _onVerseTap(QuranText text, VerseRef ref) async {
     setState(() => _selected = ref);
     final surah = surahs[ref.surah - 1];
     final messenger = ScaffoldMessenger.of(context);
+    final mark = widget.reader.surahMark(ref.surah);
+    final markColor = surahMarkColor(context);
 
     final action = await showModalBottomSheet<_VerseAction>(
       context: context,
@@ -278,6 +344,28 @@ class _QuranReaderScreenState extends State<QuranReaderScreen> {
               subtitle: Text('Saves ${surah.name} ${ref.verse} to the tracker'),
               onTap: () => Navigator.pop(context, _VerseAction.track),
             ),
+            if (mark == ref.verse)
+              ListTile(
+                leading: Icon(Icons.bookmark_remove_rounded, color: markColor),
+                title: const Text('Remove surah mark'),
+                subtitle: Text('Your place in ${surah.name} is forgotten'),
+                onTap: () => Navigator.pop(context, _VerseAction.removeMark),
+              )
+            else
+              ListTile(
+                leading: Icon(Icons.bookmark_rounded, color: markColor),
+                title: Text(
+                  mark == null ? 'Add surah mark' : 'Move surah mark here',
+                ),
+                subtitle: Text(
+                  mark == null
+                      ? 'Keeps your place in ${surah.name} for next time. '
+                            "Doesn't change your khathm."
+                      : 'Moves it from verse $mark. '
+                            "Doesn't change your khathm.",
+                ),
+                onTap: () => Navigator.pop(context, _VerseAction.setMark),
+              ),
             ListTile(
               leading: const Icon(Icons.copy_rounded),
               title: const Text('Copy verse'),
@@ -292,10 +380,25 @@ class _QuranReaderScreenState extends State<QuranReaderScreen> {
     if (mounted) setState(() => _selected = null);
     switch (action) {
       case _VerseAction.track:
+        HapticFeedback.mediumImpact();
         await widget.tracker.save(ref.surah, ref.verse);
         if (mounted) {
           showSavedToast(context, widget.tracker, ref.surah, ref.verse);
         }
+      case _VerseAction.setMark:
+        HapticFeedback.mediumImpact();
+        await widget.reader.setSurahMark(ref);
+        if (mounted) {
+          showTopToast(
+            context,
+            'Surah mark set at ${surah.name} ${ref.verse}. '
+            'Tap it on the page to remove it.',
+            icon: Icons.bookmark_rounded,
+            iconColor: AppColors.emeraldBright,
+          );
+        }
+      case _VerseAction.removeMark:
+        await _removeMark(ref);
       case _VerseAction.copy:
         await Clipboard.setData(
           ClipboardData(
@@ -351,6 +454,8 @@ class _QuranReaderScreenState extends State<QuranReaderScreen> {
                 textSize: widget.reader.textSize,
                 selected: _selected,
                 onVerseLongPress: (ref) => _onVerseTap(text, ref),
+                marks: widget.reader.surahMarks,
+                onMarkTap: _onMarkTap,
               ),
             ),
           ),
@@ -440,7 +545,7 @@ class _QuranReaderScreenState extends State<QuranReaderScreen> {
   }
 }
 
-enum _VerseAction { track, copy }
+enum _VerseAction { track, setMark, removeMark, copy }
 
 /// The verse's meaning in English, in the verse menu. A long one scrolls
 /// within at most half the screen.
@@ -533,6 +638,13 @@ class _Word {
   final String text;
 }
 
+/// The colour of surah marks: emerald, so they never read as the gold of
+/// the khathm.
+Color surahMarkColor(BuildContext context) =>
+    Theme.of(context).brightness == Brightness.dark
+    ? AppColors.emeraldBright
+    : AppColors.emeraldLight;
+
 /// Paints the selected verse's highlight under a word or a gap. Each
 /// piece reaches a little past its box so that neighbours overlap rather
 /// than leave a seam, and only the ends of a run are rounded.
@@ -611,6 +723,8 @@ class _ReaderPage extends StatelessWidget {
     required this.textSize,
     required this.selected,
     required this.onVerseLongPress,
+    this.marks = const {},
+    this.onMarkTap,
   });
 
   final int page;
@@ -623,6 +737,10 @@ class _ReaderPage extends StatelessWidget {
   final int textSize;
   final VerseRef? selected;
   final ValueChanged<VerseRef> onVerseLongPress;
+
+  /// [ReaderStore.surahMarks].
+  final Map<int, int> marks;
+  final ValueChanged<VerseRef>? onMarkTap;
 
   List<_Line> _lines({required bool calligraphy}) {
     final layout = mushafLines[page - 1];
@@ -669,6 +787,8 @@ class _ReaderPage extends StatelessWidget {
         textSize: textSize,
         selected: selected,
         onVerseLongPress: onVerseLongPress,
+        marks: marks,
+        onMarkTap: onMarkTap,
       );
     }
     return FutureBuilder<bool>(
@@ -688,6 +808,8 @@ class _ReaderPage extends StatelessWidget {
             fallbackNotice: !ready,
             selected: selected,
             onVerseLongPress: onVerseLongPress,
+            marks: marks,
+            onMarkTap: onMarkTap,
           ),
         );
       },
@@ -705,6 +827,8 @@ class _BookPage extends StatelessWidget {
     this.textSize = 0,
     this.selected,
     this.onVerseLongPress,
+    this.marks = const {},
+    this.onMarkTap,
   });
 
   final int page;
@@ -720,6 +844,23 @@ class _BookPage extends StatelessWidget {
   final int textSize;
   final VerseRef? selected;
   final ValueChanged<VerseRef>? onVerseLongPress;
+
+  /// [ReaderStore.surahMarks]: each marked verse ends in a surah mark.
+  final Map<int, int> marks;
+  final ValueChanged<VerseRef>? onMarkTap;
+
+  /// The last word on the page of each marked verse (its verse-end
+  /// ornament), which carries the surah mark.
+  Set<_Word> _markedEnds(List<_Line> lines) {
+    final ends = <VerseRef, _Word>{};
+    for (final line in lines) {
+      if (line is! _WordsLine) continue;
+      for (final w in line.words) {
+        if (marks[w.ref.surah] == w.ref.verse) ends[w.ref] = w;
+      }
+    }
+    return Set.identity()..addAll(ends.values);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -848,6 +989,7 @@ class _BookPage extends StatelessWidget {
       color: ink,
     );
     final reveal = _Reveal(selected);
+    final markedEnds = _markedEnds(lines);
 
     final rows = <Widget>[];
     final bars = <Widget>[];
@@ -871,6 +1013,7 @@ class _BookPage extends StatelessWidget {
           lineHeight,
           reveal,
           bars,
+          markedEnds,
           (cell, gap) =>
               // Short lines (the opening pages, or where a surah ends) are
               // centred rather than stretched.
@@ -934,6 +1077,7 @@ class _BookPage extends StatelessWidget {
     double height,
     _Reveal reveal,
     List<Widget> bars,
+    Set<_Word> markedEnds,
     Widget Function(Widget Function(int k) cell, Widget? Function(int k) gap)
     arrange,
   ) {
@@ -955,7 +1099,13 @@ class _BookPage extends StatelessWidget {
       );
     }
     return arrange(
-      (k) => _wordCell(words[k], style, height, key: reveal.keyFor(words[k])),
+      (k) => _wordCell(
+        words[k],
+        style,
+        height,
+        key: reveal.keyFor(words[k]),
+        marked: markedEnds.contains(words[k]),
+      ),
       (k) => null,
     );
   }
@@ -991,14 +1141,46 @@ class _BookPage extends StatelessWidget {
     );
   }
 
-  /// A word that can be held to open its verse's menu.
-  Widget _wordCell(_Word w, TextStyle style, double height, {Key? key}) {
+  /// A word that can be held to open its verse's menu. A [marked] word
+  /// (the end of a verse with a surah mark) is drawn in the mark's colour
+  /// under a ribbon, and a tap on it offers to remove the mark.
+  Widget _wordCell(
+    _Word w,
+    TextStyle style,
+    double height, {
+    Key? key,
+    bool marked = false,
+  }) {
     return GestureDetector(
       key: key,
       // Opaque so the whole cell, not just the glyphs, can be held.
       behavior: HitTestBehavior.opaque,
       onLongPress: () => onVerseLongPress?.call(w.ref),
-      child: _cellBody(w, style, height),
+      onTap: marked ? () => onMarkTap?.call(w.ref) : null,
+      child: marked
+          ? Builder(
+              builder: (context) {
+                final color = surahMarkColor(context);
+                final size = style.fontSize!;
+                return Stack(
+                  clipBehavior: Clip.none,
+                  alignment: Alignment.center,
+                  children: [
+                    _cellBody(w, style.copyWith(color: color), height),
+                    Positioned(
+                      top: math.max(0, (height - size * 2.4) / 2),
+                      child: Icon(
+                        Icons.bookmark_rounded,
+                        size: size * 0.75,
+                        color: color,
+                        semanticLabel: 'Surah mark',
+                      ),
+                    ),
+                  ],
+                );
+              },
+            )
+          : _cellBody(w, style, height),
     );
   }
 
@@ -1048,6 +1230,7 @@ class _BookPage extends StatelessWidget {
     // last line is set from the right instead.
     final width = constraints.maxWidth;
     final reveal = _Reveal(selected);
+    final markedEnds = _markedEnds(lines);
     // Adds a block of the page, and an empty bar to match it unless its
     // highlight was just added.
     void addBlock(double height, Widget block) {
@@ -1077,6 +1260,7 @@ class _BookPage extends StatelessWidget {
           lineHeight,
           reveal,
           bars,
+          markedEnds,
           (cell, gap) => line.length == 1
               // A lone word too wide for the screen is scaled down to fit.
               ? FittedBox(fit: BoxFit.scaleDown, child: cell(0))
@@ -1271,7 +1455,10 @@ class _SurahHeader extends StatelessWidget {
           child: Center(
             // "سورة <name>" in the 1405 AH calligraphy.
             child: Text(
-              'surah${surah.toString().padLeft(3, '0')}',
+              // Two ligatures, the name and the word "surah", laid out left
+              // to right: the name goes first so it ends up on the left
+              // and the line reads "surah <name>" from the right.
+              '${surah.toString().padLeft(3, '0')}surah',
               textDirection: TextDirection.ltr,
               textScaler: TextScaler.noScaling,
               style: TextStyle(

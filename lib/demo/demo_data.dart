@@ -32,10 +32,10 @@ List<ReadingEntry> demoEntries(DateTime now) {
   DateTime at(int daysAgo, int hour, int minute) =>
       DateTime(today.year, today.month, today.day - daysAgo, hour, minute);
 
-  var position = 1;
-  final entries = [
-    ReadingEntry(surah: 1, verse: 1, savedAt: at(_dailyVerses.length, 21, 10)),
-  ];
+  // A first save in the opening surahs counts from the start of the
+  // Quran (see dailyCounts), so no baseline save is needed.
+  var position = 0;
+  final entries = <ReadingEntry>[];
   void add(int verses, DateTime savedAt) {
     position += verses;
     final (surah, verse) = _fromAbsolute(position);

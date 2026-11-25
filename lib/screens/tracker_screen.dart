@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../data/quran.dart';
 import '../data/surahs.dart';
@@ -94,6 +95,7 @@ class _TrackerScreenState extends State<TrackerScreen> {
   }
 
   Future<void> _save() async {
+    HapticFeedback.mediumImpact();
     await widget.store.save(_surah, _verse);
     if (!mounted) return;
     showSavedToast(context, widget.store, _surah, _verse);

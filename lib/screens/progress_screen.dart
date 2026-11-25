@@ -151,7 +151,9 @@ class _ProgressScreenState extends State<ProgressScreen> {
                     for (var i = 0; i < history.length; i++) ...[
                       _HistoryTile(
                         entry: history[i],
-                        isBaseline: identical(history[i], store.entries.first),
+                        isBaseline:
+                            identical(history[i], store.entries.first) &&
+                            history[i].surah > countFromStartThroughSurah,
                         onDelete: () => store.delete(history[i]),
                       ),
                       if (i < history.length - 1)

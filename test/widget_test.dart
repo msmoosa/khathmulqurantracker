@@ -77,11 +77,17 @@ void main() {
     await tester.tap(find.text('Progress'));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
-      find.textContaining('· starting point'),
+      find.text('Al-Fatihah 1:1'),
       200,
-      scrollable: find.byType(Scrollable).last,
+      scrollable: find
+          .byWidgetPredicate(
+            (w) => w is Scrollable && w.axisDirection == AxisDirection.down,
+          )
+          .last,
     );
-    expect(find.textContaining('· starting point'), findsOneWidget);
+    // A first save in the opening surahs counts as reading, not as a
+    // starting point.
+    expect(find.textContaining('· starting point'), findsNothing);
   });
 
   testWidgets('tracker follows a position saved elsewhere', (tester) async {

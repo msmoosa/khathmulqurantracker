@@ -33,7 +33,7 @@ class MushafFonts extends ChangeNotifier {
   static const bismillahFamily = 'QPCBismillah';
 
   /// Bundled font that draws "سورة" and the surah name from the text
-  /// `surahNNN`.
+  /// `NNNsurah` (name first, so it reads right to left).
   static const surahNameFamily = 'QPCSurahNames';
 
   final _loaded = <String>{};

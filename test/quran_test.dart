@@ -162,7 +162,7 @@ void main() {
 
     expect(find.text('Al-Baqarah, Juz 1, Hizb 1'), findsOneWidget);
     expect(find.text('2'), findsOneWidget);
-    expect(find.text('surah002'), findsOneWidget);
+    expect(find.text('002surah'), findsOneWidget);
     expect(reader.lastPage, 2);
 
     // Holding a word offers to save that verse to the tracker.
@@ -238,10 +238,7 @@ void main() {
     final center = tester.getCenter(find.byType(PageView));
     Future<void> pinch(double from, double to) async {
       final a = await tester.startGesture(center - Offset(from, 0));
-      final b = await tester.startGesture(
-        center + Offset(from, 0),
-        pointer: 2,
-      );
+      final b = await tester.startGesture(center + Offset(from, 0), pointer: 2);
       for (var i = 1; i <= 10; i++) {
         final d = from + (to - from) * i / 10;
         await a.moveTo(center - Offset(d, 0));
@@ -261,5 +258,82 @@ void main() {
     await pinch(150, 20);
     expect(reader.textSize, 0);
     expect(reader.lastPage, 50);
+  });
+
+  testWidgets('surah marks: one per surah, set from the verse menu', (
+    tester,
+  ) async {
+    MushafFonts.instance = MushafFonts(enabled: false);
+    tester.view.physicalSize = const Size(1179, 2556);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    SharedPreferences.setMockInitialValues({
+      'reminder_permission_prompted': true,
+    });
+    final prefs = await SharedPreferences.getInstance();
+    final reader = ReaderStore(prefs);
+    final tracker = TrackerStore(prefs);
+    await tester.runAsync(
+      () => Future.wait([QuranText.load(), QpcWords.load()]),
+    );
+    await tester.pumpWidget(
+      KhathmTrackerApp(
+        store: tracker,
+        reminders: ReminderService(prefs),
+        reader: reader,
+        appearance: AppearanceStore(prefs),
+      ),
+    );
+
+    // Holding a daily surah shows its hadith, graded.
+    await tester.longPress(find.text('Ya-Sin'));
+    await tester.pumpAndSettle();
+    expect(find.text('Weak hadith'), findsWidgets);
+    expect(find.text('Strong hadith'), findsWidgets);
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+
+    final pageMark = find.byWidgetPredicate(
+      (w) => w is Icon && w.semanticLabel == 'Surah mark',
+    );
+    await tester.tap(find.text('Al-Baqarah'));
+    await tester.pumpAndSettle();
+    await tester.longPress(find.text('ٱلْكِتَـٰبُ'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add surah mark'));
+    await tester.pumpAndSettle();
+    expect(reader.surahMarks, {2: 2});
+    // The khathm is untouched.
+    expect(tracker.lastEntry, isNull);
+    expect(pageMark, findsOneWidget);
+
+    // A second mark in the same surah moves the first.
+    await tester.longPress(find.text('بِٱلْغَيْبِ'));
+    await tester.pumpAndSettle();
+    expect(find.text('Move surah mark here'), findsOneWidget);
+    await tester.tap(find.text('Move surah mark here'));
+    await tester.pumpAndSettle();
+    expect(reader.surahMarks, {2: 3});
+    expect(pageMark, findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+
+    // The index shows it, and a tap on the mark removes it.
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('Verse 3 · ', findRichText: true),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Al-Baqarah'));
+    await tester.pumpAndSettle();
+    await tester.tap(pageMark);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Remove surah mark'));
+    await tester.pumpAndSettle();
+    expect(reader.surahMarks, isEmpty);
+    expect(pageMark, findsNothing);
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
   });
 }
