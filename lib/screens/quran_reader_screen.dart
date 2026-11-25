@@ -60,6 +60,85 @@ class _QuranReaderScreenState extends State<QuranReaderScreen> {
   /// obvious, hides on the first page turn, and a tap toggles it.
   var _showBar = true;
 
+  /// Fingers on the page, for pinching the text size.
+  final _pointers = <int, Offset>{};
+
+  /// The distance between two pinching fingers when the text size last
+  /// changed, or null when not pinching.
+  double? _pinchBase;
+
+  /// How far a pinch must spread (or close, inversely) to change a step.
+  static const _pinchStep = 1.25;
+
+  bool get _pinching => _pinchBase != null;
+
+  double _pinchDistance() {
+    final [a, b, ...] = _pointers.values.toList();
+    return (a - b).distance;
+  }
+
+  void _onPointerDown(PointerDownEvent event) {
+    _pointers[event.pointer] = event.localPosition;
+    if (_pointers.length == 2) {
+      // Holds the page still while pinching, so it doesn't turn.
+      setState(() => _pinchBase = _pinchDistance());
+    }
+  }
+
+  void _onPointerMove(PointerMoveEvent event) {
+    if (!_pointers.containsKey(event.pointer)) return;
+    _pointers[event.pointer] = event.localPosition;
+    final base = _pinchBase;
+    if (base == null || _pointers.length < 2) return;
+    final distance = _pinchDistance();
+    if (base <= 0) {
+      _pinchBase = distance;
+    } else if (distance / base >= _pinchStep) {
+      _stepTextSize(1, distance);
+    } else if (base / distance >= _pinchStep) {
+      _stepTextSize(-1, distance);
+    }
+  }
+
+  void _onPointerEnd(PointerEvent event) {
+    _pointers.remove(event.pointer);
+    if (_pointers.length < 2 && _pinching) {
+      setState(() => _pinchBase = null);
+    }
+  }
+
+  /// A trackpad pinch (web and desktop), which comes as one scale.
+  double _trackpadBase = 1;
+
+  void _onPanZoomStart(PointerPanZoomStartEvent event) {
+    _trackpadBase = 1;
+    setState(() => _pinchBase = 1);
+  }
+
+  void _onPanZoomUpdate(PointerPanZoomUpdateEvent event) {
+    if (event.scale / _trackpadBase >= _pinchStep) {
+      _trackpadBase = event.scale;
+      _stepTextSize(1, 1);
+    } else if (_trackpadBase / event.scale >= _pinchStep) {
+      _trackpadBase = event.scale;
+      _stepTextSize(-1, 1);
+    }
+  }
+
+  void _onPanZoomEnd(PointerPanZoomEndEvent event) {
+    setState(() => _pinchBase = null);
+  }
+
+  /// Moves the text size a step larger or smaller, if there is one, and
+  /// measures the pinch from here.
+  void _stepTextSize(int delta, double distance) {
+    final size = widget.reader.textSize + delta;
+    if (size < 0 || size > ReaderStore.maxTextSize) return;
+    _pinchBase = distance;
+    HapticFeedback.selectionClick();
+    widget.reader.setTextSize(size);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -146,6 +225,14 @@ class _QuranReaderScreenState extends State<QuranReaderScreen> {
                               "mushaf's own script."
                         : 'Larger text: the verses wrap to fit the screen, '
                               'in a simpler script.',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Tip: pinch the page to change it too.',
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
@@ -255,6 +342,7 @@ class _QuranReaderScreenState extends State<QuranReaderScreen> {
               reverse: true,
               itemCount: mushafPageCount,
               onPageChanged: _onPageChanged,
+              physics: _pinching ? const NeverScrollableScrollPhysics() : null,
               itemBuilder: (context, i) => _ReaderPage(
                 page: i + 1,
                 text: text,
@@ -277,10 +365,34 @@ class _QuranReaderScreenState extends State<QuranReaderScreen> {
         body: Stack(
           children: [
             SafeArea(
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () => setState(() => _showBar = !_showBar),
-                child: page,
+              // Pinching the page changes the text size.
+              child: Listener(
+                onPointerDown: _onPointerDown,
+                onPointerMove: _onPointerMove,
+                onPointerUp: _onPointerEnd,
+                onPointerCancel: _onPointerEnd,
+                onPointerPanZoomStart: _onPanZoomStart,
+                onPointerPanZoomUpdate: _onPanZoomUpdate,
+                onPointerPanZoomEnd: _onPanZoomEnd,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => setState(() => _showBar = !_showBar),
+                  child: page,
+                ),
+              ),
+            ),
+            // The text size, shown while pinching.
+            IgnorePointer(
+              child: Center(
+                child: AnimatedOpacity(
+                  opacity: _pinching ? 1 : 0,
+                  duration: const Duration(milliseconds: 150),
+                  child: ListenableBuilder(
+                    listenable: widget.reader,
+                    builder: (context, _) =>
+                        _TextSizeBadge(size: widget.reader.textSize),
+                  ),
+                ),
               ),
             ),
             AnimatedSlide(
@@ -419,6 +531,73 @@ class _Word {
   const _Word(this.ref, this.text);
   final VerseRef ref;
   final String text;
+}
+
+/// Paints the selected verse's highlight under a word or a gap. Each
+/// piece reaches a little past its box so that neighbours overlap rather
+/// than leave a seam, and only the ends of a run are rounded.
+class _BarPainter extends CustomPainter {
+  const _BarPainter({this.roundStart = false, this.roundEnd = false});
+
+  /// Whether to round the start (right, in Arabic) or end of the bar.
+  final bool roundStart;
+  final bool roundEnd;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const r = Radius.circular(4);
+    final rect = (Offset.zero & size).inflate(0.5);
+    canvas.drawRRect(
+      RRect.fromRectAndCorners(
+        rect,
+        topRight: roundStart ? r : Radius.zero,
+        bottomRight: roundStart ? r : Radius.zero,
+        topLeft: roundEnd ? r : Radius.zero,
+        bottomLeft: roundEnd ? r : Radius.zero,
+      ),
+      Paint()..color = AppColors.gold,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_BarPainter old) =>
+      old.roundStart != roundStart || old.roundEnd != roundEnd;
+}
+
+/// A pill naming the text size, shown over the page while pinching.
+class _TextSizeBadge extends StatelessWidget {
+  const _TextSizeBadge({required this.size});
+
+  final int size;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.black.withAlpha(170),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.format_size, color: Colors.white, size: 20),
+            const SizedBox(width: 8),
+            Text(
+              size == 0
+                  ? 'As printed'
+                  : 'Size $size of ${ReaderStore.maxTextSize}',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// Shows a page in the mushaf's own calligraphy once its font is ready,
@@ -668,13 +847,10 @@ class _BookPage extends StatelessWidget {
       height: 1,
       color: ink,
     );
-    final highlight = AppColors.gold.withAlpha(isDark ? 80 : 70);
-
     final reveal = _Reveal(selected);
-    Widget word(_Word w) =>
-        _wordCell(w, wordStyle, lineHeight, highlight, key: reveal.keyFor(w));
 
     final rows = <Widget>[];
+    final bars = <Widget>[];
     for (final (i, line) in lines.indexed) {
       final Widget row = switch (line) {
         _BismillahLine() => _glyphToWidth(
@@ -689,19 +865,30 @@ class _BookPage extends StatelessWidget {
           height: lineHeight * 0.95,
           color: ink,
         ),
-        _WordsLine(:final words) =>
-          // Short lines (the opening pages, or where a surah ends) are
-          // centred rather than stretched.
-          page <= 2 || natural[i] * fontSize / baseSize < width * 0.75
+        _WordsLine(:final words) => _wordRow(
+          words,
+          wordStyle,
+          lineHeight,
+          reveal,
+          bars,
+          (cell, gap) =>
+              // Short lines (the opening pages, or where a surah ends) are
+              // centred rather than stretched.
+              page <= 2 || natural[i] * fontSize / baseSize < width * 0.75
               // Scaled down rather than clipped if a line ever measures
               // wider than expected (e.g. a fallback font).
               ? FittedBox(
                   fit: BoxFit.scaleDown,
                   child: Row(
                     children: [
-                      for (final (k, w) in words.indexed) ...[
-                        if (k > 0) SizedBox(width: fontSize * 0.2),
-                        word(w),
+                      for (var k = 0; k < words.length; k++) ...[
+                        if (k > 0)
+                          SizedBox(
+                            width: fontSize * 0.2,
+                            height: lineHeight,
+                            child: gap(k),
+                          ),
+                        cell(k),
                       ],
                     ],
                   ),
@@ -710,22 +897,21 @@ class _BookPage extends StatelessWidget {
               // proportion to its size, so the whole line can be held.
               : Row(
                   children: [
-                    for (final (k, w) in words.indexed)
+                    for (var k = 0; k < words.length; k++)
                       Expanded(
                         flex: math.max(1, (wordWidths[i][k] * 10).round()),
-                        child: word(w),
+                        child: cell(k),
                       ),
                   ],
                 ),
+        ),
       };
+      if (bars.length == rows.length) bars.add(const SizedBox.shrink());
       rows.add(SizedBox(height: lineHeight, child: row));
+      bars.last = SizedBox(height: lineHeight, child: bars.last);
     }
 
-    final column = Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: rows,
-    );
+    final column = _layered(rows, bars, isDark);
     if (scrolls) {
       return _RevealSelected(
         reveal: reveal,
@@ -738,42 +924,100 @@ class _BookPage extends StatelessWidget {
     );
   }
 
-  /// A word that can be held to open its verse's menu, highlighted while
-  /// its verse is selected.
-  Widget _wordCell(
-    _Word w,
+  /// Lays out a line of [words] with [arrange], which places each word's
+  /// cell and the gap before it. Returns the line as text, and adds the
+  /// same layout to [bars] with the selected verse's highlight in place of
+  /// the text, if the verse is on this line.
+  Widget _wordRow(
+    List<_Word> words,
     TextStyle style,
     double height,
-    Color highlight, {
-    Key? key,
-  }) {
+    _Reveal reveal,
+    List<Widget> bars,
+    Widget Function(Widget Function(int k) cell, Widget? Function(int k) gap)
+    arrange,
+  ) {
+    bool lit(int k) => k >= 0 && k < words.length && words[k].ref == selected;
+    if (words.any((w) => w.ref == selected)) {
+      final ghost = style.copyWith(color: Colors.transparent);
+      bars.add(
+        arrange(
+          (k) => CustomPaint(
+            painter: lit(k)
+                ? _BarPainter(roundStart: !lit(k - 1), roundEnd: !lit(k + 1))
+                : null,
+            child: _cellBody(words[k], ghost, height),
+          ),
+          (k) => lit(k - 1) && lit(k)
+              ? const CustomPaint(painter: _BarPainter())
+              : null,
+        ),
+      );
+    }
+    return arrange(
+      (k) => _wordCell(words[k], style, height, key: reveal.keyFor(words[k])),
+      (k) => null,
+    );
+  }
+
+  /// The page's lines over their highlight [bars], which are drawn
+  /// together beneath all the text so that the marks of one line never
+  /// sit under the next line's highlight, and so that where the bars meet
+  /// or overlap they blend into one.
+  static Widget _layered(List<Widget> rows, List<Widget> bars, bool isDark) {
+    final column = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: rows,
+    );
+    if (bars.every((b) => b is SizedBox && b.child is SizedBox)) {
+      return column;
+    }
+    return Stack(
+      fit: StackFit.passthrough,
+      children: [
+        IgnorePointer(
+          child: Opacity(
+            opacity: (isDark ? 80 : 70) / 255,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: bars,
+            ),
+          ),
+        ),
+        column,
+      ],
+    );
+  }
+
+  /// A word that can be held to open its verse's menu.
+  Widget _wordCell(_Word w, TextStyle style, double height, {Key? key}) {
     return GestureDetector(
       key: key,
       // Opaque so the whole cell, not just the glyphs, can be held.
       behavior: HitTestBehavior.opaque,
       onLongPress: () => onVerseLongPress?.call(w.ref),
-      child: Container(
-        height: height,
-        padding: EdgeInsets.symmetric(
-          horizontal: style.fontSize! * _gapFactor / 2,
-        ),
-        decoration: selected == w.ref
-            ? BoxDecoration(
-                color: highlight,
-                borderRadius: BorderRadius.circular(4),
-              )
-            : null,
-        // Only as wide as the word, so a reflowed line can hold several;
-        // in a printed line the cell is given its width.
-        child: Center(
-          widthFactor: 1,
-          child: Text(
-            w.text,
-            textScaler: TextScaler.noScaling,
-            softWrap: false,
-            overflow: TextOverflow.visible,
-            style: style,
-          ),
+      child: _cellBody(w, style, height),
+    );
+  }
+
+  static Widget _cellBody(_Word w, TextStyle style, double height) {
+    return Container(
+      height: height,
+      padding: EdgeInsets.symmetric(
+        horizontal: style.fontSize! * _gapFactor / 2,
+      ),
+      // Only as wide as the word, so a reflowed line can hold several;
+      // in a printed line the cell is given its width.
+      child: Center(
+        widthFactor: 1,
+        child: Text(
+          w.text,
+          textScaler: TextScaler.noScaling,
+          softWrap: false,
+          overflow: TextOverflow.visible,
+          style: style,
         ),
       ),
     );
@@ -796,15 +1040,22 @@ class _BookPage extends StatelessWidget {
       height: 1,
       color: ink,
     );
-    final highlight = AppColors.gold.withAlpha(isDark ? 80 : 70);
-
     final blocks = <Widget>[];
+    final bars = <Widget>[];
     var run = <_Word>[];
     // Breaks a run of words into lines that fill the width, and justifies
     // each by spreading its words to both edges, as in print. The run's
     // last line is set from the right instead.
     final width = constraints.maxWidth;
     final reveal = _Reveal(selected);
+    // Adds a block of the page, and an empty bar to match it unless its
+    // highlight was just added.
+    void addBlock(double height, Widget block) {
+      if (bars.length == blocks.length) bars.add(const SizedBox.shrink());
+      blocks.add(SizedBox(height: height, child: block));
+      bars.last = SizedBox(height: height, child: bars.last);
+    }
+
     void endRun() {
       if (run.isEmpty) return;
       final lines = <List<_Word>>[[]];
@@ -819,30 +1070,30 @@ class _BookPage extends StatelessWidget {
         used += size;
       }
       for (final (i, line) in lines.indexed) {
-        final cells = [
-          for (final w in line)
-            _wordCell(
-              w,
-              wordStyle,
-              lineHeight,
-              highlight,
-              key: reveal.keyFor(w),
-            ),
-        ];
-        blocks.add(
-          SizedBox(
-            height: lineHeight,
-            // A lone word too wide for the screen is scaled down to fit.
-            child: line.length == 1
-                ? FittedBox(fit: BoxFit.scaleDown, child: cells.single)
-                : Row(
-                    mainAxisAlignment: i == lines.length - 1
-                        ? MainAxisAlignment.start
-                        : MainAxisAlignment.spaceBetween,
-                    children: cells,
-                  ),
-          ),
+        final last = i == lines.length - 1;
+        final row = _wordRow(
+          line,
+          wordStyle,
+          lineHeight,
+          reveal,
+          bars,
+          (cell, gap) => line.length == 1
+              // A lone word too wide for the screen is scaled down to fit.
+              ? FittedBox(fit: BoxFit.scaleDown, child: cell(0))
+              : Row(
+                  children: [
+                    for (var k = 0; k < line.length; k++) ...[
+                      // The spare width is shared out between the words.
+                      if (k > 0 && !last)
+                        Expanded(
+                          child: SizedBox(height: lineHeight, child: gap(k)),
+                        ),
+                      cell(k),
+                    ],
+                  ],
+                ),
         );
+        addBlock(lineHeight, row);
       }
       run = [];
     }
@@ -855,27 +1106,19 @@ class _BookPage extends StatelessWidget {
           run.addAll(words);
         case _HeaderLine(:final surah):
           endRun();
-          blocks.add(
-            SizedBox(
-              height: bannerHeight,
-              child: _SurahHeader(
-                surah: surah,
-                height: bannerHeight * 0.95,
-                color: ink,
-              ),
-            ),
+          addBlock(
+            bannerHeight,
+            _SurahHeader(surah: surah, height: bannerHeight * 0.95, color: ink),
           );
         case _BismillahLine():
           endRun();
-          blocks.add(
-            SizedBox(
-              height: bannerHeight,
-              child: _glyphToWidth(
-                '\uFDFD',
-                MushafFonts.bismillahFamily,
-                math.min(constraints.maxWidth * 0.82, bannerHeight * 9),
-                ink,
-              ),
+          addBlock(
+            bannerHeight,
+            _glyphToWidth(
+              '\uFDFD',
+              MushafFonts.bismillahFamily,
+              math.min(constraints.maxWidth * 0.82, bannerHeight * 9),
+              ink,
             ),
           );
       }
@@ -888,10 +1131,7 @@ class _BookPage extends StatelessWidget {
         // Room for the marks above the first line and below the last, which
         // reach past their line boxes and would be clipped at the edges.
         padding: EdgeInsets.symmetric(vertical: fontSize * 0.6),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: blocks,
-        ),
+        child: _layered(blocks, bars, isDark),
       ),
     );
   }

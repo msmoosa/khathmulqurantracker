@@ -214,4 +214,52 @@ void main() {
     expect(rect.top, greaterThanOrEqualTo(0));
     expect(rect.bottom, lessThanOrEqualTo(screen.height));
   });
+
+  testWidgets('pinching the page changes the text size', (tester) async {
+    MushafFonts.instance = MushafFonts(enabled: false);
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    await tester.runAsync(
+      () => Future.wait([QuranText.load(), QpcWords.load()]),
+    );
+    final reader = ReaderStore(prefs);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: QuranReaderScreen(
+          initialPage: 50,
+          reader: reader,
+          tracker: TrackerStore(prefs),
+          appearance: AppearanceStore(prefs),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final center = tester.getCenter(find.byType(PageView));
+    Future<void> pinch(double from, double to) async {
+      final a = await tester.startGesture(center - Offset(from, 0));
+      final b = await tester.startGesture(
+        center + Offset(from, 0),
+        pointer: 2,
+      );
+      for (var i = 1; i <= 10; i++) {
+        final d = from + (to - from) * i / 10;
+        await a.moveTo(center - Offset(d, 0));
+        await b.moveTo(center + Offset(d, 0));
+        await tester.pump();
+      }
+      await a.up();
+      await b.up();
+      await tester.pumpAndSettle();
+    }
+
+    // Spreading by 1.25 twice over moves up two steps.
+    await pinch(40, 40 * 1.25 * 1.25 + 1);
+    expect(reader.textSize, 2);
+    expect(reader.lastPage, 50);
+    // Closing all the way comes back to the printed page, and no further.
+    await pinch(150, 20);
+    expect(reader.textSize, 0);
+    expect(reader.lastPage, 50);
+  });
 }
