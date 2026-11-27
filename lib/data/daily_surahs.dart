@@ -41,8 +41,8 @@ class DailySurah {
   /// Where to open the reader.
   final VerseRef start;
 
-  /// Whether this is a single verse (Ayat al-Kursi) rather than a surah,
-  /// so it has no surah mark of its own.
+  /// Whether these are verses (Ayat al-Kursi, Amana ar-Rasul) rather than
+  /// a whole surah, so they have no surah mark of their own.
   final bool verse;
   final List<SurahVirtue> virtues;
 }
@@ -114,6 +114,17 @@ const dailySurahs = <DailySurah>[
       strength: HadithStrength.strong,
     ),
   ]),
+  DailySurah('As-Sajdah', VerseRef(32, 1), [
+    _sleepWithSajdahAndMulk,
+    SurahVirtue(
+      'On Fridays the Prophet ﷺ used to recite Alif Lam Mim Tanzil '
+      '(as-Sajdah) and Hal ata \'alal-insan (al-Insan) in the Fajr prayer.',
+      narrator: 'Abu Hurairah',
+      source: 'Sahih al-Bukhari 891',
+      grade: 'Sahih (al-Bukhari)',
+      strength: HadithStrength.strong,
+    ),
+  ]),
   DailySurah('Ayat al-Kursi', VerseRef(2, 255), verse: true, [
     SurahVirtue(
       'The Prophet ﷺ asked Ubayy which verse in the Book of Allah is the '
@@ -143,6 +154,26 @@ const dailySurahs = <DailySurah>[
       strength: HadithStrength.strong,
     ),
   ]),
+  DailySurah('Amana ar-Rasul', VerseRef(2, 285), verse: true, [
+    SurahVirtue(
+      'Whoever recites the last two verses of Surah al-Baqarah at night, '
+      'they will suffice him.',
+      narrator: "Abu Mas'ud al-Badri",
+      source: 'Sahih al-Bukhari 5009, Sahih Muslim 807',
+      grade: 'Sahih (al-Bukhari, Muslim)',
+      strength: HadithStrength.strong,
+    ),
+    SurahVirtue(
+      'An angel came down and said: "Rejoice in two lights given to you that '
+      'were given to no prophet before you: the Opening of the Book and the '
+      'closing verses of Surah al-Baqarah. You will not recite a letter of '
+      'them except that you will be given it."',
+      narrator: "Abdullah ibn 'Abbas",
+      source: 'Sahih Muslim 806',
+      grade: 'Sahih (Muslim)',
+      strength: HadithStrength.strong,
+    ),
+  ]),
   DailySurah('Ar-Rahman', VerseRef(55, 1), [
     SurahVirtue(
       'The Prophet ﷺ recited Surah ar-Rahman to his companions and they were '
@@ -164,15 +195,23 @@ const dailySurahs = <DailySurah>[
       strength: HadithStrength.weak,
     ),
   ]),
-  DailySurah('As-Sajdah', VerseRef(32, 1), [
-    _sleepWithSajdahAndMulk,
+  DailySurah('Al-Waqi\'ah', VerseRef(56, 1), [
     SurahVirtue(
-      'On Fridays the Prophet ﷺ used to recite Alif Lam Mim Tanzil '
-      '(as-Sajdah) and Hal ata \'alal-insan (al-Insan) in the Fajr prayer.',
-      narrator: 'Abu Hurairah',
-      source: 'Sahih al-Bukhari 891',
-      grade: 'Sahih (al-Bukhari)',
+      'Abu Bakr said: "O Messenger of Allah, you have gone grey." He said: '
+      '"Hud, al-Waqi\'ah, al-Mursalat, \'Amma yatasa\'alun and Idha '
+      'ash-shamsu kuwwirat have made me grey."',
+      narrator: "Abdullah ibn 'Abbas",
+      source: "Jami' at-Tirmidhi 3297",
+      grade: 'Sahih (al-Albani)',
       strength: HadithStrength.strong,
+    ),
+    SurahVirtue(
+      'Whoever recites Surah al-Waqi\'ah every night will never be afflicted '
+      'by poverty.',
+      narrator: "Abdullah ibn Mas'ud",
+      source: "al-Bayhaqi, Shu'ab al-Iman",
+      grade: "Da'if (al-Albani)",
+      strength: HadithStrength.weak,
     ),
   ]),
 ];
